@@ -49,11 +49,7 @@ const showImageViewer = ref(false);
 const allImages = ref<string[]>([]);
 const currentImageIndex = ref(0);
 const currentImageLoading = ref(false);
-const columns = ref<Article[][]>([]);
-const columnCount = ref(4);
 const containerRef = ref<HTMLElement | null>(null);
-// eslint-disable-next-line no-undef
-let resizeObserver: ResizeObserver | null = null;
 const contextMenu = ref<{ show: boolean; x: number; y: number; article: Article | null }>({
   show: false,
   x: 0,
@@ -63,6 +59,52 @@ const contextMenu = ref<{ show: boolean; x: number; y: number; article: Article 
 const imageCountCache = ref<Map<number, number>>(new Map());
 const showTextOverlay = ref(true);
 const thumbnailStripRef = ref<HTMLElement | null>(null);
+const imageListCache = ref<Map<number, string[]>>(new Map());
+const previewIndexCache = ref<Map<number, number>>(new Map());
+const previewDirectionCache = ref<Map<number, 'next' | 'prev'>>(new Map());
+const previewAspectRatioCache = ref<Map<number, number>>(new Map());
+const sortedArticles = computed(() =>
+  [...articles.value].sort((a, b) => {
+    return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();
+  })
+);
+
+function setImageListCache(articleId: number, images: string[]) {
+  const next = new Map(imageListCache.value);
+  next.set(articleId, images);
+  imageListCache.value = next;
+}
+
+function setPreviewIndexCache(articleId: number, index: number) {
+  const next = new Map(previewIndexCache.value);
+  next.set(articleId, index);
+  previewIndexCache.value = next;
+}
+
+function setPreviewDirectionCache(articleId: number, direction: 'next' | 'prev') {
+  const next = new Map(previewDirectionCache.value);
+  next.set(articleId, direction);
+  previewDirectionCache.value = next;
+}
+
+function setPreviewAspectRatioCache(articleId: number, ratio: number) {
+  const next = new Map(previewAspectRatioCache.value);
+  next.set(articleId, ratio);
+  previewAspectRatioCache.value = next;
+}
+
+function preloadImage(src: string): Promise<void> {
+  return new Promise((resolve) => {
+    if (!src) {
+      resolve();
+      return;
+    }
+    const img = new Image();
+    img.onload = () => resolve();
+    img.onerror = () => resolve();
+    img.src = src;
+  });
+}
 
 function getImageReferrerPolicy(imageUrl: string): string | undefined {
   if (!imageUrl) return undefined;
@@ -83,6 +125,11 @@ const position = ref<{ x: number; y: number }>({ x: 0, y: 0 });
 const isDragging = ref(false);
 const dragStart = ref<{ x: number; y: number }>({ x: 0, y: 0 });
 const imageContainerRef = ref<HTMLElement | null>(null);
+
+const viewerDirection = ref<'next' | 'prev'>('next');
+const viewerTransitionName = computed(() =>
+  viewerDirection.value === 'prev' ? 'viewer-fade-prev' : 'viewer-fade-next'
+);
 
 // Load showTextOverlay preference from localStorage
 const savedShowTextOverlay = localStorage.getItem('imageGalleryShowTextOverlay');
@@ -143,6 +190,12 @@ async function fetchImages(loadMore = false) {
 
   isLoading.value = true;
   try {
+    if (!loadMore) {
+      imageListCache.value = new Map();
+      previewIndexCache.value = new Map();
+      previewDirectionCache.value = new Map();
+      previewAspectRatioCache.value = new Map();
+    }
     let url = `/api/articles/images?page=${page.value}&limit=${ITEMS_PER_PAGE}`;
     if (feedId.value) {
       url += `&feed_id=${feedId.value}`;
@@ -204,48 +257,91 @@ function getImageCount(article: Article): number {
   return imageCountCache.value.get(article.id) || 1;
 }
 
-// Calculate number of columns based on container width dynamically
-function calculateColumns() {
-  if (!containerRef.value) return;
-  const width = containerRef.value.offsetWidth;
-
-  // Target column width: 250px for optimal image viewing
-  // Minimum 2 columns, no maximum
-  const targetColumnWidth = 250;
-  const calculatedColumns = Math.floor(width / targetColumnWidth);
-
-  // Ensure at least 2 columns
-  columnCount.value = Math.max(2, calculatedColumns);
-
-  // Rearrange columns after calculating new count
-  arrangeColumns();
+function getPreviewImage(article: Article): string {
+  const images = imageListCache.value.get(article.id);
+  if (!images || images.length === 0) {
+    return article.image_url || '';
+  }
+  const index = previewIndexCache.value.get(article.id) ?? 0;
+  return images[index] || article.image_url || '';
 }
 
-// Arrange articles into columns by time, balancing heights
-function arrangeColumns() {
-  if (articles.value.length === 0) {
-    columns.value = [];
-    return;
+function getPreviewTransitionName(article: Article): string {
+  return previewDirectionCache.value.get(article.id) === 'prev'
+    ? 'preview-slide-prev'
+    : 'preview-slide-next';
+}
+
+function getPreviewAspectRatio(article: Article): string {
+  const ratio = previewAspectRatioCache.value.get(article.id);
+  if (!ratio || !Number.isFinite(ratio)) {
+    return '4 / 3';
+  }
+  return `${ratio}`;
+}
+
+function handlePreviewImageLoad(article: Article, event: Event) {
+  if (previewAspectRatioCache.value.has(article.id)) return;
+  const img = event.target as HTMLImageElement | null;
+  if (!img || !img.naturalWidth || !img.naturalHeight) return;
+  const ratio = img.naturalWidth / img.naturalHeight;
+  if (!Number.isFinite(ratio) || ratio <= 0) return;
+  setPreviewAspectRatioCache(article.id, ratio);
+}
+
+
+async function fetchPreviewImages(article: Article): Promise<string[]> {
+  if (imageListCache.value.has(article.id)) {
+    return imageListCache.value.get(article.id) || [];
   }
 
-  // Initialize columns
-  const cols: Article[][] = Array.from({ length: columnCount.value }, () => []);
-  const colHeights: number[] = Array(columnCount.value).fill(0);
+  try {
+    const res = await fetch(`/api/articles/extract-images?id=${article.id}`);
+    if (res.ok) {
+      const data = await res.json();
+      if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+        setImageListCache(article.id, data.images);
+        return data.images;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to fetch preview images:', error);
+  }
 
-  // Sort articles by published date (newest first)
-  const sortedArticles = [...articles.value].sort((a, b) => {
-    return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();
-  });
+  const fallback = [article.image_url || ''].filter(Boolean);
+  setImageListCache(article.id, fallback);
+  return fallback;
+}
 
-  // Place each article in the shortest column
-  sortedArticles.forEach((article) => {
-    const shortestColIndex = colHeights.indexOf(Math.min(...colHeights));
-    cols[shortestColIndex].push(article);
-    // Estimate height: 200px for image + 80px for info
-    colHeights[shortestColIndex] += 280;
-  });
+async function changePreviewImage(article: Article, direction: 'prev' | 'next') {
+  const images = await fetchPreviewImages(article);
+  if (images.length <= 1) return;
 
-  columns.value = cols;
+  const currentIndex = previewIndexCache.value.get(article.id);
+  let index = currentIndex ?? images.findIndex((img) => img === article.image_url);
+  if (index < 0) {
+    index = 0;
+  }
+
+  if (direction === 'prev') {
+    index = index > 0 ? index - 1 : images.length - 1;
+  } else {
+    index = index < images.length - 1 ? index + 1 : 0;
+  }
+
+  const targetSrc = images[index] || article.image_url || '';
+  await Promise.race([preloadImage(targetSrc), new Promise((resolve) => setTimeout(resolve, 300))]);
+
+  setPreviewDirectionCache(article.id, direction);
+  setPreviewIndexCache(article.id, index);
+}
+
+function handleCardClick(article: Article, event: MouseEvent) {
+  const target = event.target as HTMLElement | null;
+  if (target && target.closest('button')) {
+    return;
+  }
+  openImage(article);
 }
 
 // Handle scroll for infinite loading
@@ -344,6 +440,8 @@ async function previousImage() {
   // Check if we can navigate backward
   if (!canNavigatePrevious.value) return;
 
+  viewerDirection.value = 'prev';
+
   // Reset zoom and position when navigating
   resetView();
 
@@ -385,6 +483,8 @@ async function nextImage() {
       return;
     }
   }
+
+  viewerDirection.value = 'next';
 
   // Reset zoom and position when navigating
   resetView();
@@ -752,13 +852,6 @@ function handleImageWheel(e: WheelEvent) {
   }
 }
 
-// Watch for articles changes and rearrange
-watch(articles, () => {
-  nextTick(() => {
-    arrangeColumns();
-  });
-});
-
 // Watch for feed ID changes and refetch
 watch(feedId, async () => {
   // Close image viewer when switching feeds
@@ -768,9 +861,7 @@ watch(feedId, async () => {
   articles.value = [];
   hasMore.value = true;
   await fetchImages();
-  // Recalculate columns after fetching new articles
   await nextTick();
-  calculateColumns();
 });
 
 // Watch for category changes and refetch
@@ -782,9 +873,7 @@ watch(category, async () => {
   articles.value = [];
   hasMore.value = true;
   await fetchImages();
-  // Recalculate columns after fetching new articles
   await nextTick();
-  calculateColumns();
 });
 
 onMounted(() => {
@@ -794,25 +883,11 @@ onMounted(() => {
   }
   window.addEventListener('click', closeContextMenu);
   window.addEventListener('keydown', handleKeyDown);
-
-  // Set up ResizeObserver to watch for container size changes
-  if (containerRef.value) {
-    // eslint-disable-next-line no-undef
-    resizeObserver = new ResizeObserver(() => {
-      calculateColumns();
-    });
-    resizeObserver.observe(containerRef.value);
-  }
 });
 
 onUnmounted(() => {
   if (containerRef.value) {
     containerRef.value.removeEventListener('scroll', handleScroll);
-  }
-  if (resizeObserver && containerRef.value) {
-    resizeObserver.unobserve(containerRef.value);
-    resizeObserver.disconnect();
-    resizeObserver = null;
   }
   window.removeEventListener('click', closeContextMenu);
   window.removeEventListener('keydown', handleKeyDown);
@@ -850,73 +925,92 @@ onUnmounted(() => {
     <!-- Scrollable content area -->
     <div ref="containerRef" class="flex-1 overflow-y-scroll scroll-smooth">
       <!-- Masonry Grid -->
-      <div v-if="articles.length > 0" class="p-4 flex gap-4">
+      <div v-if="articles.length > 0" class="p-4 image-gallery-columns">
         <div
-          v-for="(column, colIndex) in columns"
-          :key="colIndex"
-          class="flex-1 flex flex-col gap-4"
+          v-for="article in sortedArticles"
+          :key="article.id"
+          class="image-gallery-item cursor-pointer group"
+          @contextmenu="handleContextMenu($event, article)"
+          @click="handleCardClick(article, $event)"
         >
           <div
-            v-for="article in column"
-            :key="article.id"
-            class="cursor-pointer group"
-            @click="openImage(article)"
-            @contextmenu="handleContextMenu($event, article)"
+            class="relative overflow-hidden rounded-lg bg-bg-secondary transition-transform duration-200 hover:scale-[1.02] image-gallery-media"
+            :style="{ aspectRatio: getPreviewAspectRatio(article) }"
           >
-            <div
-              class="relative overflow-hidden rounded-lg bg-bg-secondary transition-transform duration-200 hover:scale-[1.02]"
-            >
+            <Transition :name="getPreviewTransitionName(article)" mode="out-in">
               <img
-                :src="article.image_url"
+                :key="`${article.id}-${previewIndexCache.get(article.id) ?? 0}`"
+                :src="getPreviewImage(article)"
                 :alt="article.title"
-                class="w-full h-auto block"
+                class="w-full h-full object-cover block"
                 loading="lazy"
                 :referrerpolicy="getImageReferrerPolicy(article.image_url || '')"
+                @load="handlePreviewImageLoad(article, $event)"
               />
-              <!-- Image count indicator -->
-              <div
-                v-if="getImageCount(article) > 1"
-                class="absolute bottom-2 left-2 px-2 py-1 rounded-full bg-black/60 text-white text-xs font-semibold backdrop-blur-sm z-10 flex items-center gap-1"
+            </Transition>
+            <template v-if="getImageCount(article) > 1">
+              <button
+                class="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white text-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                type="button"
+                @click.stop.prevent="changePreviewImage(article, 'prev')"
+                @mousedown.stop
+                @mouseup.stop
               >
-                <PhImage :size="14" />
-                <span class="ml-1">{{ getImageCount(article) }}</span>
-              </div>
-              <div
-                class="absolute inset-0 bg-black/0 hover:bg-black/30 transition-all duration-200 flex items-start justify-end p-2"
+                ‹
+              </button>
+              <button
+                class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white text-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                type="button"
+                @click.stop.prevent="changePreviewImage(article, 'next')"
+                @mousedown.stop
+                @mouseup.stop
               >
-                <button
-                  class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/50 rounded-full p-1.5 hover:bg-black/70"
-                  @click="toggleFavorite(article, $event)"
-                >
-                  <PhHeart
-                    :size="20"
-                    :weight="article.is_favorite ? 'fill' : 'regular'"
-                    :class="article.is_favorite ? 'text-red-500' : 'text-white'"
-                  />
-                </button>
-              </div>
-              <!-- Hover overlay when text is hidden -->
-              <div
-                v-if="!showTextOverlay"
-                class="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-              >
-                <p class="text-sm font-medium text-white line-clamp-2 mb-1">
-                  {{ article.title }}
-                </p>
-                <div class="flex items-center justify-between text-xs text-white/80">
-                  <span class="truncate flex-1">{{ article.feed_title }}</span>
-                  <span class="ml-2 shrink-0">{{ formatDate(article.published_at) }}</span>
-                </div>
-              </div>
+                ›
+              </button>
+            </template>
+            <!-- Image count indicator -->
+            <div
+              v-if="getImageCount(article) > 1"
+              class="absolute bottom-2 left-2 px-2 py-1 rounded-full bg-black/60 text-white text-xs font-semibold backdrop-blur-sm z-10 flex items-center gap-1"
+            >
+              <PhImage :size="14" />
+              <span class="ml-1">{{ getImageCount(article) }}</span>
             </div>
-            <div v-if="showTextOverlay" class="p-2">
-              <p class="text-sm font-medium text-text-primary line-clamp-2 mb-1">
+            <div
+              class="absolute inset-0 bg-black/0 hover:bg-black/30 transition-all duration-200 flex items-start justify-end p-2 pointer-events-none"
+            >
+              <button
+                class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/50 rounded-full p-1.5 hover:bg-black/70 pointer-events-auto"
+                @click="toggleFavorite(article, $event)"
+              >
+                <PhHeart
+                  :size="20"
+                  :weight="article.is_favorite ? 'fill' : 'regular'"
+                  :class="article.is_favorite ? 'text-red-500' : 'text-white'"
+                />
+              </button>
+            </div>
+            <!-- Hover overlay when text is hidden -->
+            <div
+              v-if="!showTextOverlay"
+              class="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+            >
+              <p class="text-sm font-medium text-white line-clamp-2 mb-1">
                 {{ article.title }}
               </p>
-              <div class="flex items-center justify-between text-xs text-text-secondary">
+              <div class="flex items-center justify-between text-xs text-white/80">
                 <span class="truncate flex-1">{{ article.feed_title }}</span>
                 <span class="ml-2 shrink-0">{{ formatDate(article.published_at) }}</span>
               </div>
+            </div>
+          </div>
+          <div v-if="showTextOverlay" class="p-2">
+            <p class="text-sm font-medium text-text-primary line-clamp-2 mb-1">
+              {{ article.title }}
+            </p>
+            <div class="flex items-center justify-between text-xs text-text-secondary">
+              <span class="truncate flex-1">{{ article.feed_title }}</span>
+              <span class="ml-2 shrink-0">{{ formatDate(article.published_at) }}</span>
             </div>
           </div>
         </div>
@@ -1075,20 +1169,23 @@ onUnmounted(() => {
             ></div>
           </div>
 
-          <img
-            :src="currentImageUrl"
-            :alt="selectedArticle.title"
-            class="max-w-full max-h-full object-contain select-none"
-            :class="[
-              isDragging ? '' : 'transition-transform duration-150',
-              { 'opacity-0': currentImageLoading },
-            ]"
-            :style="imageStyle"
-            :referrerpolicy="getImageReferrerPolicy(currentImageUrl)"
-            @load="handleImageLoad"
-            @error="handleImageError"
-            @dragstart.prevent
-          />
+          <Transition :name="viewerTransitionName" mode="out-in">
+            <img
+              :key="currentImageUrl"
+              :src="currentImageUrl"
+              :alt="selectedArticle.title"
+              class="max-w-full max-h-full object-contain select-none"
+              :class="[
+                isDragging ? '' : 'transition-transform duration-150',
+                { 'opacity-0': currentImageLoading },
+              ]"
+              :style="imageStyle"
+              :referrerpolicy="getImageReferrerPolicy(currentImageUrl)"
+              @load="handleImageLoad"
+              @error="handleImageError"
+              @dragstart.prevent
+            />
+          </Transition>
         </div>
 
         <!-- Thumbnail strip (shown when there are multiple images) -->
@@ -1266,6 +1363,23 @@ onUnmounted(() => {
   display: none; /* Chrome, Safari and Opera */
 }
 
+.image-gallery-columns {
+  --image-gallery-gap: clamp(12px, 1.6vw, 20px);
+  column-width: clamp(220px, 25vw, 280px);
+  column-gap: var(--image-gallery-gap);
+}
+
+.image-gallery-item {
+  break-inside: avoid;
+  display: inline-block;
+  width: 100%;
+  margin-bottom: var(--image-gallery-gap);
+}
+
+.image-gallery-media {
+  width: 100%;
+}
+
 /* Prose content styling */
 .prose-content {
   line-height: 1.6;
@@ -1287,5 +1401,53 @@ onUnmounted(() => {
 
 .dark-mode .prose-content :deep(a) {
   color: #4daafc;
+}
+
+/* Viewer transition animations */
+.viewer-fade-next-enter-active,
+.viewer-fade-next-leave-active,
+.viewer-fade-prev-enter-active,
+.viewer-fade-prev-leave-active {
+  transition: all 0.25s ease-in-out;
+}
+
+.viewer-fade-next-enter-from {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.viewer-fade-next-leave-to {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.viewer-fade-prev-enter-from {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+.viewer-fade-prev-leave-to {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+/* Preview slide transitions (masonry grid) */
+.preview-slide-next-enter-active,
+.preview-slide-next-leave-active,
+.preview-slide-prev-enter-active,
+.preview-slide-prev-leave-active {
+  transition: all 0.2s ease-out;
+}
+
+.preview-slide-next-enter-from,
+.preview-slide-prev-leave-to {
+  opacity: 0;
+  transform: translateX(10px);
+}
+
+.preview-slide-next-leave-to,
+.preview-slide-prev-enter-from {
+  opacity: 0;
+  transform: translateX(-10px);
 }
 </style>
