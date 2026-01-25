@@ -58,6 +58,8 @@ const {
   handleDeleteFeed,
   handleBatchDelete,
   handleBatchMove,
+  handleBatchEnableImageMode,
+  handleBatchDisableImageMode,
 } = useFeedManagement();
 
 const emit = defineEmits<{
@@ -215,6 +217,8 @@ function handleDiscoverAll() {
             @delete-feed="handleDeleteFeed"
             @batch-delete="handleBatchDelete"
             @batch-move="handleBatchMove"
+            @batch-enable-image-mode="handleBatchEnableImageMode"
+            @batch-disable-image-mode="handleBatchDisableImageMode"
             @discover-all="handleDiscoverAll"
             @select-feed="emit('close')"
             @update:settings="settings = $event"

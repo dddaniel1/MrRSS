@@ -30,6 +30,8 @@ const emit = defineEmits<{
   'delete-feed': [id: number];
   'batch-delete': [ids: number[]];
   'batch-move': [ids: number[]];
+  'batch-enable-image-mode': [ids: number[]];
+  'batch-disable-image-mode': [ids: number[]];
   'select-feed': [feedId: number];
 }>();
 
@@ -162,6 +164,18 @@ function handleBatchMove() {
   selectedFeeds.value = [];
 }
 
+function handleBatchEnableImageMode() {
+  if (selectedFeeds.value.length === 0) return;
+  emit('batch-enable-image-mode', selectedFeeds.value);
+  selectedFeeds.value = [];
+}
+
+function handleBatchDisableImageMode() {
+  if (selectedFeeds.value.length === 0) return;
+  emit('batch-disable-image-mode', selectedFeeds.value);
+  selectedFeeds.value = [];
+}
+
 function getFavicon(url: string): string {
   try {
     return `https://www.google.com/s2/favicons?domain=${new URL(url).hostname}`;
@@ -234,6 +248,22 @@ async function handleFeedClick(feed: Feed, event: Event) {
         type="secondary"
         class="py-1.5 px-2.5 sm:px-3"
         @click="handleBatchMove"
+      />
+      <ButtonControl
+        :label="t('setting.feed.enableImageMode')"
+        :icon="PhImage"
+        :disabled="selectedFeeds.length === 0"
+        type="secondary"
+        class="py-1.5 px-2.5 sm:px-3"
+        @click="handleBatchEnableImageMode"
+      />
+      <ButtonControl
+        :label="t('setting.feed.disableImageMode')"
+        :icon="PhEyeSlash"
+        :disabled="selectedFeeds.length === 0"
+        type="secondary"
+        class="py-1.5 px-2.5 sm:px-3"
+        @click="handleBatchDisableImageMode"
       />
     </div>
 

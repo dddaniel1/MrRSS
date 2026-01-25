@@ -2,6 +2,7 @@ package database
 
 import (
 	"database/sql"
+	"fmt"
 	"strings"
 	"time"
 
@@ -571,6 +572,40 @@ func (db *DB) ReorderFeed(feedID int64, newCategory string, newIndex int) error 
 	}
 
 	return nil
+}
+
+// UpdateFeedImageModeBulk updates the image_mode setting for multiple feeds in a single transaction.
+// This is a performant operation that uses a single SQL query with WHERE IN clause.
+func (db *DB) UpdateFeedImageModeBulk(feedIDs []int64, isImageMode bool) error {
+	db.WaitForReady()
+
+	if len(feedIDs) == 0 {
+		return nil
+	}
+
+	// Build placeholders for IN clause
+	placeholders := make([]string, len(feedIDs))
+	args := make([]interface{}, len(feedIDs)+1)
+
+	for i, id := range feedIDs {
+		placeholders[i] = "?"
+		args[i+1] = id
+	}
+
+	args[0] = boolToInt(isImageMode)
+
+	// Execute single UPDATE query with IN clause for all feeds
+	query := fmt.Sprintf("UPDATE feeds SET is_image_mode = ? WHERE id IN (%s)", strings.Join(placeholders, ","))
+	_, err := db.Exec(query, args...)
+	return err
+}
+
+// boolToInt converts boolean to integer for SQLite storage.
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 // GetNextPositionInCategory returns the next available position in a category.

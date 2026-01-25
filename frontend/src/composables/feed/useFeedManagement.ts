@@ -201,6 +201,66 @@ export function useFeedManagement() {
   }
 
   /**
+   * Enable image mode for multiple feeds
+   */
+  async function handleBatchEnableImageMode(selectedIds: number[]) {
+    if (selectedIds.length === 0) return;
+
+    try {
+      const response = await fetch('/api/feeds/bulk-update-image-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feed_ids: selectedIds,
+          is_image_mode: true,
+        }),
+      });
+
+      if (!response.ok) {
+        window.showToast(t('common.errors.unknownError'), 'error');
+        return;
+      }
+
+      const result = await response.json();
+      store.fetchFeeds();
+      window.showToast(t('modal.feed.feedsUpdatedSuccess', { count: result.updated }), 'success');
+    } catch (error) {
+      console.error('Error enabling image mode:', error);
+      window.showToast(t('common.errors.unknownError'), 'error');
+    }
+  }
+
+  /**
+   * Disable image mode for multiple feeds
+   */
+  async function handleBatchDisableImageMode(selectedIds: number[]) {
+    if (selectedIds.length === 0) return;
+
+    try {
+      const response = await fetch('/api/feeds/bulk-update-image-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feed_ids: selectedIds,
+          is_image_mode: false,
+        }),
+      });
+
+      if (!response.ok) {
+        window.showToast(t('common.errors.unknownError'), 'error');
+        return;
+      }
+
+      const result = await response.json();
+      store.fetchFeeds();
+      window.showToast(t('modal.feed.feedsUpdatedSuccess', { count: result.updated }), 'success');
+    } catch (error) {
+      console.error('Error disabling image mode:', error);
+      window.showToast(t('common.errors.unknownError'), 'error');
+    }
+  }
+
+  /**
    * Move multiple feeds to a new category
    */
   async function handleBatchMove(selectedIds: number[]) {
@@ -268,5 +328,7 @@ export function useFeedManagement() {
     handleDeleteFeed,
     handleBatchDelete,
     handleBatchMove,
+    handleBatchEnableImageMode,
+    handleBatchDisableImageMode,
   };
 }

@@ -351,3 +351,47 @@ func HandleReorderFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }
+
+// HandleUpdateFeedsImageModeBulk updates the image_mode setting for multiple feeds in a single operation.
+// @Summary      Update image mode for multiple feeds
+// @Description  Enable or disable image mode for multiple feeds at once (single database query)
+// @Tags         feeds
+// @Accept       json
+// @Produce      json
+// @Param        request  body      object  true  "Bulk image mode update (feed_ids, is_image_mode)"
+// @Success      200  {object}  map[string]interface{}  "Update success (updated count)"
+// @Failure      400  {object}  map[string]string  "Bad request"
+// @Failure      500  {object}  map[string]string  "Internal server error"
+// @Router       /feeds/bulk-update-image-mode [post]
+func HandleUpdateFeedsImageModeBulk(h *core.Handler, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		FeedIDs     []int64 `json:"feed_ids"`
+		IsImageMode bool    `json:"is_image_mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(req.FeedIDs) == 0 {
+		http.Error(w, "feed_ids cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.DB.UpdateFeedImageModeBulk(req.FeedIDs, req.IsImageMode); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"updated": len(req.FeedIDs),
+	})
+}

@@ -335,6 +335,7 @@ const en: TranslationMessages = {
       feedRefreshStarted: 'Feed refresh started',
       feedsDeletedSuccess: 'Feeds deleted successfully',
       feedsMovedSuccess: 'Feeds moved successfully',
+      feedsUpdatedSuccess: '{count} feeds updated',
       feedsSubscribedPartial: 'Partially subscribed: {succeeded}/{total} feeds',
       feedsSubscribedSuccess: 'Successfully subscribed to {count} feeds',
       feedUpdatedSuccess: 'Feed updated successfully',
@@ -700,9 +701,11 @@ const en: TranslationMessages = {
       autoExpandContent: 'Auto Expand Content',
       autoExpandContentDesc:
         'Override global full-text fetch and auto-expand settings for this feed',
+      disableImageMode: 'Disable Image Mode',
       enableFullTextFetch: 'Enable Full-Text Fetching',
       enableFullTextFetchDesc:
         'Allow fetching full article content from original websites when RSS provides only summaries',
+      enableImageMode: 'Enable Image Mode',
       fixedInterval: 'Fixed Interval',
       imageMode: 'Image Mode',
       imageModeDesc: 'Display this feed in image gallery view instead of article list',
