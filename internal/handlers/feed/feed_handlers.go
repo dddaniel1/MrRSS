@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"MrRSS/internal/handlers/core"
 	"MrRSS/internal/rsshub"
@@ -314,6 +315,76 @@ func HandleRefreshFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "refreshing"})
+}
+
+// HandleRefreshCategory refreshes all feeds in a category (including subcategories).
+// @Summary      Refresh feeds by category
+// @Description  Trigger a refresh for all feeds within a category path (includes nested categories)
+// @Tags         feeds
+// @Accept       json
+// @Produce      json
+// @Param        category  query     string  true  "Category path (empty for uncategorized)"
+// @Success      200  {object}  map[string]interface{}  "Refresh started successfully"
+// @Failure      400  {object}  map[string]string  "Bad request"
+// @Failure      404  {object}  map[string]string  "Category not found"
+// @Failure      500  {object}  map[string]string  "Internal server error"
+// @Router       /feeds/refresh-category [post]
+func HandleRefreshCategory(h *core.Handler, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	query := r.URL.Query()
+	if !query.Has("category") {
+		http.Error(w, "Missing category parameter", http.StatusBadRequest)
+		return
+	}
+
+	category := query.Get("category")
+	if category == "uncategorized" {
+		category = ""
+	}
+
+	feeds, err := h.DB.GetFeeds()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	ctx := context.Background()
+	totalMatched := 0
+	queued := 0
+
+	for _, feed := range feeds {
+		if category == "" {
+			if feed.Category != "" {
+				continue
+			}
+		} else if feed.Category != category && !strings.HasPrefix(feed.Category, category+"/") {
+			continue
+		}
+
+		totalMatched++
+		if feed.IsFreshRSSSource {
+			continue
+		}
+		h.Fetcher.FetchSingleFeed(ctx, feed, true)
+		queued++
+	}
+
+	if totalMatched == 0 {
+		http.Error(w, "Category not found", http.StatusNotFound)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":        "refreshing",
+		"feed_count":    queued,
+		"matched_count": totalMatched,
+	})
 }
 
 // HandleReorderFeed reorders a feed within or across categories.

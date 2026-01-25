@@ -366,7 +366,14 @@ export function useSidebar() {
 
   // Category actions
   async function handleCategoryAction(action: string, categoryName: string): Promise<void> {
-    if (action === 'markAllRead') {
+    if (action === 'refreshCategory') {
+      const category = categoryName === 'uncategorized' ? '' : categoryName;
+      await fetch(`/api/feeds/refresh-category?category=${encodeURIComponent(category)}`, {
+        method: 'POST',
+      });
+      window.showToast(t('modal.feed.categoryRefreshStarted'), 'success');
+      store.pollProgress();
+    } else if (action === 'markAllRead') {
       // Use the category parameter for the API call
       const category = categoryName === 'uncategorized' ? '' : categoryName;
       await fetch(`/api/articles/mark-all-read?category=${encodeURIComponent(category)}`, {
@@ -418,6 +425,11 @@ export function useSidebar() {
     e.stopPropagation();
 
     const items: Array<{ label?: string; action?: string; icon?: string; separator?: boolean }> = [
+      {
+        label: t('article.action.refreshCategory'),
+        action: 'refreshCategory',
+        icon: 'PhArrowsClockwise',
+      },
       {
         label: t('article.action.markAllAsReadFeed'),
         action: 'markAllRead',
