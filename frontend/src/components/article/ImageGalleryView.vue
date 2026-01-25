@@ -64,6 +64,19 @@ const imageCountCache = ref<Map<number, number>>(new Map());
 const showTextOverlay = ref(true);
 const thumbnailStripRef = ref<HTMLElement | null>(null);
 
+function getImageReferrerPolicy(imageUrl: string): string | undefined {
+  if (!imageUrl) return undefined;
+  try {
+    const hostname = new URL(imageUrl).hostname.toLowerCase();
+    if (hostname.endsWith('500px.me')) {
+      return 'no-referrer';
+    }
+  } catch (error) {
+    console.error('Failed to parse image URL:', imageUrl, error);
+  }
+  return undefined;
+}
+
 // Image viewer zoom and pan
 const scale = ref(1);
 const position = ref<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -858,6 +871,7 @@ onUnmounted(() => {
                 :alt="article.title"
                 class="w-full h-auto block"
                 loading="lazy"
+                :referrerpolicy="getImageReferrerPolicy(article.image_url || '')"
               />
               <!-- Image count indicator -->
               <div
@@ -1070,6 +1084,7 @@ onUnmounted(() => {
               { 'opacity-0': currentImageLoading },
             ]"
             :style="imageStyle"
+            :referrerpolicy="getImageReferrerPolicy(currentImageUrl)"
             @load="handleImageLoad"
             @error="handleImageError"
             @dragstart.prevent
@@ -1103,6 +1118,7 @@ onUnmounted(() => {
                 :alt="`${t('common.text.image')} ${index + 1}`"
                 class="w-full h-full object-cover"
                 loading="lazy"
+                :referrerpolicy="getImageReferrerPolicy(image)"
               />
               <!-- Active indicator -->
               <div
