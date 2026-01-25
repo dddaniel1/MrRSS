@@ -1,12 +1,14 @@
 package feed
 
 import (
-	"MrRSS/internal/models"
-	"MrRSS/internal/utils"
+	"html"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
+
+	"MrRSS/internal/models"
+	"MrRSS/internal/utils"
 
 	"github.com/mmcdole/gofeed"
 )
@@ -198,7 +200,7 @@ func ExtractFirstImageURLFromHTML(htmlContent string) string {
 	re := regexp.MustCompile(`<img[^>]+src="([^">]+)"`)
 	matches := re.FindStringSubmatch(htmlContent)
 	if len(matches) > 1 {
-		return matches[1]
+		return html.UnescapeString(matches[1])
 	}
 
 	return ""
@@ -218,7 +220,10 @@ func ExtractAllImageURLsFromHTML(htmlContent string) []string {
 
 	for _, match := range matches {
 		if len(match) > 1 {
-			urls = append(urls, match[1])
+			unescaped := html.UnescapeString(match[1])
+			if unescaped != "" {
+				urls = append(urls, unescaped)
+			}
 		}
 	}
 
