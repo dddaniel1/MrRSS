@@ -20,6 +20,11 @@ export function getProxiedMediaUrl(url: string, referer?: string): string {
     return url;
   }
 
+  // Don't proxy Douban blog images (hotlink protection causes proxy failures)
+  if (shouldBypassProxy(url)) {
+    return url;
+  }
+
   // Don't proxy localhost URLs (these are local development URLs)
   if (url.startsWith('http://localhost') || url.startsWith('http://127.0.0.1')) {
     return url;
@@ -43,18 +48,54 @@ export function getProxiedMediaUrl(url: string, referer?: string): string {
   // CRITICAL FIX: Use base64 encoding to avoid all URL encoding issues
   // This prevents double-encoding problems with special characters, Chinese characters, etc.
   // Base64 encoding is safe for URLs and doesn't interfere with query parameter parsing
-  const urlB64 = btoa(urlToProxy);
+  let urlB64 = '';
+  try {
+    urlB64 = encodeToBase64(urlToProxy);
+  } catch (error) {
+    console.warn('Failed to base64-encode media URL:', urlToProxy, error);
+    return urlToProxy;
+  }
 
   // Build proxy URL with base64-encoded parameters
   let proxyUrl = `/api/media/proxy?url_b64=${urlB64}`;
 
   // Add referer if provided (also base64-encoded)
   if (referer) {
-    const refererB64 = btoa(referer);
-    proxyUrl += `&referer_b64=${refererB64}`;
+    try {
+      const refererB64 = encodeToBase64(referer);
+      proxyUrl += `&referer_b64=${refererB64}`;
+    } catch (error) {
+      console.warn('Failed to base64-encode media referer:', referer, error);
+      return urlToProxy;
+    }
   }
 
   return proxyUrl;
+}
+
+function shouldBypassProxy(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return (
+      hostname === '500px.me' ||
+      hostname.endsWith('.500px.me') ||
+      hostname.endsWith('500px.com')|| hostname.includes("blog.douban.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function encodeToBase64(value: string): string {
+  if (typeof TextEncoder === 'undefined') {
+    return btoa(value);
+  }
+  const bytes = new TextEncoder().encode(value);
+  let binary = '';
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
 }
 
 /**
