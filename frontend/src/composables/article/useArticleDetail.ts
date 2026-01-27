@@ -2,6 +2,7 @@ import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import { useAppStore } from '@/stores/app';
 import { useI18n } from 'vue-i18n';
 import { openInBrowser } from '@/utils/browser';
+import { copyToClipboard } from '@/utils/clipboard';
 import type { Article } from '@/types/models';
 import { proxyImagesInHtml, isMediaCacheEnabled } from '@/utils/mediaProxy';
 
@@ -454,6 +455,11 @@ export function useArticleDetail() {
                         icon: 'PhCopy',
                       },
                       {
+                        label: t('common.contextMenu.copyImageLink'),
+                        action: 'copyLink',
+                        icon: 'ph-link',
+                      },
+                      {
                         label: t('article.action.viewImage'),
                         action: 'view',
                         icon: 'PhMagnifyingGlassPlus',
@@ -468,6 +474,8 @@ export function useArticleDetail() {
                     callback: (action: string, data: { src: string }) => {
                       if (action === 'copy') {
                         copyImage(data.src);
+                      } else if (action === 'copyLink') {
+                        copyImageLink(data.src);
                       } else if (action === 'view') {
                         imageViewerSrc.value = data.src;
                         imageViewerAlt.value = '';
@@ -627,6 +635,16 @@ export function useArticleDetail() {
       window.showToast(t('common.toast.copiedToClipboard'), 'success');
     } catch (error) {
       console.error('Failed to copy image:', error);
+      window.showToast(t('common.errors.failedToCopy'), 'error');
+    }
+  }
+
+  // Copy image link to clipboard
+  async function copyImageLink(src: string) {
+    const success = await copyToClipboard(src);
+    if (success) {
+      window.showToast(t('common.toast.copiedToClipboard'), 'success');
+    } else {
       window.showToast(t('common.errors.failedToCopy'), 'error');
     }
   }

@@ -154,6 +154,7 @@ const en: TranslationMessages = {
     connectionSuccessful: 'Connection successful',
     contextMenu: {
       copyImage: 'Copy Image',
+      copyImageLink: 'Copy Image Link',
       copyLink: 'Copy Link',
       copyTitle: 'Copy Title',
       downloadAudio: 'Download Audio File',

@@ -153,6 +153,7 @@ const zh: TranslationMessages = {
     connectionSuccessful: '连接成功',
     contextMenu: {
       copyImage: '复制图片',
+      copyImageLink: '复制图片链接',
       copyLink: '复制链接',
       copyTitle: '复制标题',
       downloadAudio: '下载音频文件',
