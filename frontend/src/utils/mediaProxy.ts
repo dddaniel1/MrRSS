@@ -152,9 +152,11 @@ export function clearMediaCacheEnabledCache(): void {
 export function proxyImagesInHtml(html: string, referer?: string): string {
   if (!html) return html;
 
+  let processed = unwrapJintiankanshaInHtml(html);
+
   // First, convert lazy-loaded images to normal images
   // This ensures images load immediately without waiting for lazy loading scripts
-  let processed = convertLazyImages(html);
+  processed = convertLazyImages(processed);
 
   // Then proxy the src attributes
   processed = proxyImgAttribute(processed, 'src', referer);
@@ -262,4 +264,25 @@ function decodeHTMLEntities(text: string): string {
   const textarea = document.createElement('textarea');
   textarea.innerHTML = text;
   return textarea.value;
+}
+
+// unwrapJintiankanshaInHtml replaces img2.jintiankansha.me wrapper URLs in HTML.
+// This avoids requests to img2 (which often return 403) and exposes the real image URL.
+function unwrapJintiankanshaInHtml(html: string): string {
+  const wrapperRegex = /https?:\/\/img2\.jintiankansha\.me\/get\?src=([^"'\s>]+)/gi;
+  return html.replace(wrapperRegex, (match, rawValue) => {
+    if (!rawValue) return match;
+    try {
+      const decoded = decodeURIComponent(rawValue);
+      if (decoded.startsWith('/api/media/proxy')) {
+        return decoded;
+      }
+      if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
+        return decoded;
+      }
+    } catch {
+      return match;
+    }
+    return match;
+  });
 }

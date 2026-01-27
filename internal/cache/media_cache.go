@@ -152,6 +152,9 @@ func (mc *MediaCache) download(url, referer string) ([]byte, string, error) {
 	if referer != "" {
 		req.Header.Set("Referer", referer)
 	}
+	if referer == "https://mp.weixin.qq.com/" {
+		req.Header.Set("Origin", "https://mp.weixin.qq.com")
+	}
 
 	// Add additional headers to bypass restrictions
 	// Note: Don't set Accept-Encoding - let Go's http.Transport handle it automatically

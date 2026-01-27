@@ -36,6 +36,34 @@ func validateMediaURL(urlStr string) error {
 	return nil
 }
 
+// isWeChatImageHost checks whether the media URL points to WeChat image domains.
+func isWeChatImageHost(mediaURL string) bool {
+	parsed, err := url.Parse(mediaURL)
+	if err != nil {
+		return false
+	}
+	if parsed.Host == "" {
+		return false
+	}
+	host := strings.ToLower(parsed.Host)
+	return host == "mmbiz.qpic.cn" || strings.HasSuffix(host, ".mmbiz.qpic.cn") || host == "mmbiz.qlogo.cn" || strings.HasSuffix(host, ".mmbiz.qlogo.cn")
+}
+
+// normalizeMediaReferer enforces a WeChat-compatible referer for WeChat image hosts.
+func normalizeMediaReferer(mediaURL, referer string) string {
+	parsed, err := url.Parse(mediaURL)
+	if err != nil {
+		return referer
+	}
+
+	host := strings.ToLower(parsed.Host)
+	if host == "mmbiz.qpic.cn" || strings.HasSuffix(host, ".mmbiz.qpic.cn") || host == "mmbiz.qlogo.cn" || strings.HasSuffix(host, ".mmbiz.qlogo.cn") {
+		return "https://mp.weixin.qq.com/"
+	}
+
+	return referer
+}
+
 // proxyImagesInHTML replaces image URLs in HTML with proxied versions
 func proxyImagesInHTML(htmlContent, referer string) string {
 	if htmlContent == "" || referer == "" {
@@ -175,7 +203,19 @@ func HandleMediaProxy(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	referer = normalizeMediaReferer(mediaURL, referer)
+
 	// Try cache first if enabled
+	// Prefer direct proxy for WeChat images to bypass cached anti-hotlink placeholders.
+	preferDirectProxy := isWeChatImageHost(mediaURL)
+	if preferDirectProxy && mediaProxyFallback == "true" {
+		err := proxyMediaDirectly(mediaURL, referer, w)
+		if err == nil {
+			return
+		}
+		log.Printf("Direct proxy failed for %s: %v", mediaURL, err)
+	}
+
 	if mediaCacheEnabled == "true" {
 		// Get media cache directory
 		cacheDir, err := utils.GetMediaCacheDir()
@@ -1748,6 +1788,9 @@ func proxyMediaDirectly(mediaURL, referer string, w http.ResponseWriter) error {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	if referer != "" {
 		req.Header.Set("Referer", referer)
+	}
+	if referer == "https://mp.weixin.qq.com/" {
+		req.Header.Set("Origin", "https://mp.weixin.qq.com")
 	}
 
 	// Add additional headers
