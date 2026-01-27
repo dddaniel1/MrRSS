@@ -1705,6 +1705,26 @@ func HandleWebpageResource(h *core.Handler, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	if isHeicContentType(contentType) || isHeicExtension(resourceURL) {
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			log.Printf("Failed to read HEIC content: %v", err)
+			http.Error(w, "Failed to read resource", http.StatusInternalServerError)
+			return
+		}
+		converted, err := cache.ConvertHeicToJpeg(bodyBytes)
+		if err == nil {
+			bodyBytes = converted
+			contentType = "image/jpeg"
+			w.Header().Set("Content-Type", contentType)
+		}
+		w.Header().Set("Content-Length", strconv.Itoa(len(bodyBytes)))
+		if _, err = w.Write(bodyBytes); err != nil {
+			log.Printf("Failed to write HEIC content: %v", err)
+		}
+		return
+	}
+
 	// For non-CSS files, stream directly
 	// Stream the response directly to avoid loading large files into memory
 	_, err = io.Copy(w, resp.Body)
@@ -1750,10 +1770,31 @@ func proxyMediaDirectly(mediaURL, referer string, w http.ResponseWriter) error {
 		contentType = getContentTypeFromPath(mediaURL)
 	}
 
+	var bodyBytes []byte
+	if isHeicContentType(contentType) || isHeicExtension(mediaURL) {
+		bodyBytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("failed to read response body: %w", err)
+		}
+		converted, err := cache.ConvertHeicToJpeg(bodyBytes)
+		if err == nil {
+			bodyBytes = converted
+			contentType = "image/jpeg"
+		}
+	}
+
 	// Set response headers
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "public, max-age=3600") // Cache for 1 hour
 	w.Header().Set("X-Media-Source", "direct-proxy")
+
+	if bodyBytes != nil {
+		w.Header().Set("Content-Length", strconv.Itoa(len(bodyBytes)))
+		if _, err = w.Write(bodyBytes); err != nil {
+			return fmt.Errorf("failed to write response: %w", err)
+		}
+		return nil
+	}
 
 	// Stream the response directly to avoid loading large files into memory
 	_, err = io.Copy(w, resp.Body)
@@ -1822,6 +1863,10 @@ func getContentTypeFromPath(path string) string {
 		return "image/gif"
 	case ".webp":
 		return "image/webp"
+	case ".heic":
+		return "image/heic"
+	case ".heif":
+		return "image/heif"
 	case ".svg":
 		return "image/svg+xml"
 	case ".mp4":
@@ -1863,4 +1908,20 @@ func getContentTypeFromPath(path string) string {
 	default:
 		return "application/octet-stream"
 	}
+}
+
+func isHeicContentType(contentType string) bool {
+	if contentType == "" {
+		return false
+	}
+	if idx := strings.Index(contentType, ";"); idx != -1 {
+		contentType = contentType[:idx]
+	}
+	contentType = strings.TrimSpace(strings.ToLower(contentType))
+	return contentType == "image/heic" || contentType == "image/heif"
+}
+
+func isHeicExtension(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	return ext == ".heic" || ext == ".heif"
 }

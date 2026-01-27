@@ -66,7 +66,13 @@ func TestGetExtensionAndContentTypeHelpers(t *testing.T) {
 	if ct := getContentTypeFromPath("file.jpg"); ct != "image/jpeg" {
 		t.Fatalf("unexpected content type: %s", ct)
 	}
+	if ct := getContentTypeFromPath("file.heic"); ct != "image/heic" {
+		t.Fatalf("unexpected content type: %s", ct)
+	}
 	if ext := getExtensionFromContentType("image/png; charset=utf8"); ext != ".png" {
+		t.Fatalf("unexpected ext: %s", ext)
+	}
+	if ext := getExtensionFromContentType("image/heif"); ext != ".heif" {
 		t.Fatalf("unexpected ext: %s", ext)
 	}
 }

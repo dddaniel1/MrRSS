@@ -2,9 +2,11 @@
 package cache
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"image/jpeg"
 	"io"
 	"net/http"
 	"os"
@@ -12,6 +14,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	"github.com/gen2brain/heic"
 )
 
 // MediaCache handles caching of images and videos to work around anti-hotlinking
@@ -80,6 +84,18 @@ func (mc *MediaCache) Get(url, referer string) ([]byte, string, error) {
 			return nil, "", fmt.Errorf("failed to read cached file: %w", err)
 		}
 		contentType := getContentTypeFromPath(cachedPath)
+		convertedData, convertedType, converted := convertHeicIfNeeded(contentType, url, data)
+		if converted {
+			data = convertedData
+			contentType = convertedType
+			convertedPath := filepath.Join(mc.cacheDir, hashURL(url)+getExtensionFromContentType(convertedType))
+			if convertedPath != cachedPath {
+				if err := os.WriteFile(convertedPath, data, 0644); err == nil {
+					_ = os.Remove(cachedPath)
+					cachedPath = convertedPath
+				}
+			}
+		}
 		return data, contentType, nil
 	}
 
@@ -87,6 +103,12 @@ func (mc *MediaCache) Get(url, referer string) ([]byte, string, error) {
 	data, contentType, err := mc.download(url, referer)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to download media: %w", err)
+	}
+
+	convertedData, convertedType, converted := convertHeicIfNeeded(contentType, url, data)
+	if converted {
+		data = convertedData
+		contentType = convertedType
 	}
 
 	// Determine better file extension from Content-Type if available
@@ -329,6 +351,10 @@ func getContentTypeFromPath(path string) string {
 		return "image/gif"
 	case ".webp":
 		return "image/webp"
+	case ".heic":
+		return "image/heic"
+	case ".heif":
+		return "image/heif"
 	case ".svg":
 		return "image/svg+xml"
 	case ".mp4":
@@ -365,6 +391,10 @@ func getExtensionFromContentType(contentType string) string {
 		return ".gif"
 	case "image/webp":
 		return ".webp"
+	case "image/heic":
+		return ".heic"
+	case "image/heif":
+		return ".heif"
 	case "image/svg+xml":
 		return ".svg"
 	case "video/mp4":
@@ -382,4 +412,70 @@ func getExtensionFromContentType(contentType string) string {
 	default:
 		return ""
 	}
+}
+
+func convertHeicIfNeeded(contentType, url string, data []byte) ([]byte, string, bool) {
+	if !shouldConvertHeic(contentType, url, data) {
+		return data, contentType, false
+	}
+
+	converted, err := ConvertHeicToJpeg(data)
+	if err != nil {
+		fmt.Printf("Warning: HEIC conversion failed for %s: %v\n", url, err)
+		return data, contentType, false
+	}
+
+	return converted, "image/jpeg", true
+}
+
+func shouldConvertHeic(contentType, url string, data []byte) bool {
+	if isHeicContentType(contentType) || isHeicExtension(url) {
+		return true
+	}
+	return hasHeicMagic(data)
+}
+
+func isHeicContentType(contentType string) bool {
+	if contentType == "" {
+		return false
+	}
+	if idx := strings.Index(contentType, ";"); idx != -1 {
+		contentType = contentType[:idx]
+	}
+	contentType = strings.TrimSpace(strings.ToLower(contentType))
+	return contentType == "image/heic" || contentType == "image/heif"
+}
+
+func isHeicExtension(path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
+	return ext == ".heic" || ext == ".heif"
+}
+
+func hasHeicMagic(data []byte) bool {
+	if len(data) < 12 {
+		return false
+	}
+	if string(data[4:8]) != "ftyp" {
+		return false
+	}
+	switch string(data[8:12]) {
+	case "heic", "heif", "heix", "hevc", "hevx", "mif1", "msf1":
+		return true
+	default:
+		return false
+	}
+}
+
+func ConvertHeicToJpeg(data []byte) ([]byte, error) {
+	img, err := heic.Decode(bytes.NewReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("decode heic: %w", err)
+	}
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 90}); err != nil {
+		return nil, fmt.Errorf("encode jpeg: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }

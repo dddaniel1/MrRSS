@@ -63,6 +63,7 @@ const imageListCache = ref<Map<number, string[]>>(new Map());
 const previewIndexCache = ref<Map<number, number>>(new Map());
 const previewDirectionCache = ref<Map<number, 'next' | 'prev'>>(new Map());
 const previewAspectRatioCache = ref<Map<number, number>>(new Map());
+const feedUrlCache = ref<Map<number, string>>(new Map());
 const sortedArticles = computed(() =>
   [...articles.value].sort((a, b) => {
     return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();
@@ -93,6 +94,49 @@ function setPreviewAspectRatioCache(articleId: number, ratio: number) {
   previewAspectRatioCache.value = next;
 }
 
+function setFeedUrlCache(articleId: number, feedUrl: string | undefined) {
+  if (!feedUrl) return;
+  const next = new Map(feedUrlCache.value);
+  next.set(articleId, feedUrl);
+  feedUrlCache.value = next;
+}
+
+function encodeBase64(value: string): string {
+  try {
+    return btoa(unescape(encodeURIComponent(value)));
+  } catch (error) {
+    console.error('Failed to base64 encode value:', error);
+    return '';
+  }
+}
+
+function buildMediaProxyUrl(imageUrl: string, referer?: string): string {
+  if (!imageUrl) return '';
+  if (
+    imageUrl.startsWith('data:') ||
+    imageUrl.startsWith('blob:') ||
+    imageUrl.includes('/api/media/proxy')
+  ) {
+    return imageUrl;
+  }
+  const urlB64 = encodeBase64(imageUrl);
+  if (!urlB64) return imageUrl;
+  let proxyUrl = `/api/media/proxy?url_b64=${urlB64}`;
+  if (referer) {
+    const refererB64 = encodeBase64(referer);
+    if (refererB64) {
+      proxyUrl += `&referer_b64=${refererB64}`;
+    }
+  }
+  return proxyUrl;
+}
+
+function getProxyImageUrl(articleId: number, imageUrl: string): string {
+  if (!imageUrl) return '';
+  const feedUrl = feedUrlCache.value.get(articleId);
+  return buildMediaProxyUrl(imageUrl, feedUrl);
+}
+
 function preloadImage(src: string): Promise<void> {
   return new Promise((resolve) => {
     if (!src) {
@@ -108,6 +152,7 @@ function preloadImage(src: string): Promise<void> {
 
 function getImageReferrerPolicy(imageUrl: string): string | undefined {
   if (!imageUrl) return undefined;
+  if (imageUrl.startsWith('/')) return undefined;
   try {
     const hostname = new URL(imageUrl).hostname.toLowerCase();
     if (hostname.endsWith('500px.me')) {
@@ -151,9 +196,16 @@ const category = computed(() => store.currentCategory);
 // Get current image URL
 const currentImageUrl = computed(() => {
   if (allImages.value.length > 0 && currentImageIndex.value < allImages.value.length) {
-    return allImages.value[currentImageIndex.value];
+    const rawUrl = allImages.value[currentImageIndex.value];
+    if (selectedArticle.value) {
+      return getProxyImageUrl(selectedArticle.value.id, rawUrl);
+    }
+    return rawUrl;
   }
-  return selectedArticle.value?.image_url || '';
+  if (!selectedArticle.value) {
+    return '';
+  }
+  return getProxyImageUrl(selectedArticle.value.id, selectedArticle.value.image_url || '');
 });
 
 // Image style for zoom and pan
@@ -260,10 +312,11 @@ function getImageCount(article: Article): number {
 function getPreviewImage(article: Article): string {
   const images = imageListCache.value.get(article.id);
   if (!images || images.length === 0) {
-    return article.image_url || '';
+    return getProxyImageUrl(article.id, article.image_url || '');
   }
   const index = previewIndexCache.value.get(article.id) ?? 0;
-  return images[index] || article.image_url || '';
+  const rawUrl = images[index] || article.image_url || '';
+  return getProxyImageUrl(article.id, rawUrl);
 }
 
 function getPreviewTransitionName(article: Article): string {
@@ -300,6 +353,7 @@ async function fetchPreviewImages(article: Article): Promise<string[]> {
     if (res.ok) {
       const data = await res.json();
       if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+        setFeedUrlCache(article.id, data.feed_url);
         setImageListCache(article.id, data.images);
         return data.images;
       }
@@ -330,7 +384,8 @@ async function changePreviewImage(article: Article, direction: 'prev' | 'next') 
   }
 
   const targetSrc = images[index] || article.image_url || '';
-  await Promise.race([preloadImage(targetSrc), new Promise((resolve) => setTimeout(resolve, 300))]);
+  const proxiedSrc = getProxyImageUrl(article.id, targetSrc);
+  await Promise.race([preloadImage(proxiedSrc), new Promise((resolve) => setTimeout(resolve, 300))]);
 
   setPreviewDirectionCache(article.id, direction);
   setPreviewIndexCache(article.id, index);
@@ -411,6 +466,7 @@ async function fetchArticleImages(article: Article) {
     if (res.ok) {
       const data = await res.json();
       if (data.images && Array.isArray(data.images) && data.images.length > 0) {
+        setFeedUrlCache(article.id, data.feed_url);
         allImages.value = data.images;
         // Find the index of the article's main image
         currentImageIndex.value = data.images.findIndex((img: string) => img === article.image_url);
@@ -1211,7 +1267,7 @@ onUnmounted(() => {
               "
             >
               <img
-                :src="image"
+                :src="selectedArticle ? getProxyImageUrl(selectedArticle.id, image) : image"
                 :alt="`${t('common.text.image')} ${index + 1}`"
                 class="w-full h-full object-cover"
                 loading="lazy"
@@ -1324,7 +1380,7 @@ onUnmounted(() => {
       <button
         class="w-full px-4 py-2 flex items-center gap-3 text-sm text-text-primary hover:bg-bg-tertiary active:bg-bg-secondary transition-colors cursor-pointer"
         @click="
-          downloadImage(contextMenu.article.image_url || '');
+          downloadImage(getProxyImageUrl(contextMenu.article.id, contextMenu.article.image_url || ''));
           closeContextMenu();
         "
       >
