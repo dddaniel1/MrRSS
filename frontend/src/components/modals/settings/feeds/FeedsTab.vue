@@ -95,6 +95,7 @@ function handleSelectFeed(feedId: number) {
     />
 
     <FeedManagementSettings
+      :image-gallery-enabled="settings.image_gallery_enabled"
       @add-feed="handleAddFeed"
       @edit-feed="handleEditFeed"
       @delete-feed="handleDeleteFeed"

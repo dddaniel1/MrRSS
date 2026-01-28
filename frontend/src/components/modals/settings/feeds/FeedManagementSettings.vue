@@ -24,6 +24,10 @@ import { SettingGroup, ButtonControl } from '@/components/settings';
 const store = useAppStore();
 const { t, locale } = useI18n();
 
+const props = defineProps<{
+  imageGalleryEnabled: boolean;
+}>();
+
 const emit = defineEmits<{
   'add-feed': [];
   'edit-feed': [feed: Feed];
@@ -250,6 +254,7 @@ async function handleFeedClick(feed: Feed, event: Event) {
         @click="handleBatchMove"
       />
       <ButtonControl
+        v-if="props.imageGalleryEnabled"
         :label="t('setting.feed.enableImageMode')"
         :icon="PhImage"
         :disabled="selectedFeeds.length === 0"
@@ -258,6 +263,7 @@ async function handleFeedClick(feed: Feed, event: Event) {
         @click="handleBatchEnableImageMode"
       />
       <ButtonControl
+        v-if="props.imageGalleryEnabled"
         :label="t('setting.feed.disableImageMode')"
         :icon="PhEyeSlash"
         :disabled="selectedFeeds.length === 0"
