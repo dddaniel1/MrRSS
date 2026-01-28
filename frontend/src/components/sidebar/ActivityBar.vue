@@ -10,14 +10,21 @@ import {
   PhGear,
   PhTextIndent,
   PhTextOutdent,
+  PhPlay,
+  PhPause,
 } from '@phosphor-icons/vue';
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
 import { useAppStore } from '@/stores/app';
 import { useI18n } from 'vue-i18n';
 import LogoSvg from '../../../assets/logo.svg';
+import { useGlobalAudioPlayer } from '@/composables/article/useGlobalAudioPlayer';
 
 const store = useAppStore();
 const { t } = useI18n();
+const { currentSourceUrl, currentArticleTitle, isPlaying, togglePlay } = useGlobalAudioPlayer();
+
+const hasNowPlaying = computed(() => !!currentSourceUrl.value);
+const isNowPlayingActive = computed(() => hasNowPlaying.value && isPlaying.value);
 
 interface NavItem {
   id: string;
@@ -162,6 +169,11 @@ function handleFeedListStateChange(expanded: boolean, pinned?: boolean) {
   saveDrawerState();
 }
 
+async function handleNowPlayingClick() {
+  if (!hasNowPlaying.value) return;
+  await togglePlay();
+}
+
 // Expose functions and state to parent
 defineExpose({
   toggleFeedList,
@@ -224,6 +236,28 @@ defineExpose({
         >
           {{ store.unreadCounts?.total > 99 ? '99+' : store.unreadCounts?.total }}
         </span>
+      </button>
+
+      <button
+        class="relative flex items-center justify-center flex-shrink-0 transition-all"
+        style="width: 44px; height: 44px"
+        :class="[
+          hasNowPlaying ? 'text-text-secondary hover:text-accent' : 'text-text-secondary opacity-40 cursor-not-allowed',
+          isNowPlayingActive ? 'text-accent' : '',
+        ]"
+        :title="
+          hasNowPlaying && currentArticleTitle
+            ? `${t('sidebar.activity.nowPlaying')}: ${currentArticleTitle}`
+            : t('sidebar.activity.nowPlaying')
+        "
+        @click="handleNowPlayingClick"
+      >
+        <component
+          :is="isNowPlayingActive ? PhPause : PhPlay"
+          :size="24"
+          :weight="isNowPlayingActive ? 'fill' : 'regular'"
+          class="transition-all"
+        />
       </button>
     </div>
 

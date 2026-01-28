@@ -950,6 +950,7 @@ const zh: TranslationMessages = {
       imageGallery: '图片模式',
       immediateTasks: '即时任务',
       lastGlobalRefresh: '最后更新时间',
+      nowPlaying: '正在播放',
       queuedTasks: '排队任务',
       readLater: '稍后阅读',
       unreadArticles: '未读文章',

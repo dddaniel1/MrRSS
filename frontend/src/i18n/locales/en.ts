@@ -967,6 +967,7 @@ const en: TranslationMessages = {
       imageGallery: 'Image Gallery',
       immediateTasks: 'Immediate Tasks',
       lastGlobalRefresh: 'Last Update',
+      nowPlaying: 'Now Playing',
       queuedTasks: 'Queued Tasks',
       readLater: 'Read Later',
       unreadArticles: 'Unread Articles',
