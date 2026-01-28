@@ -19,6 +19,7 @@ import {
   PhEnvelopeOpen,
 } from '@phosphor-icons/vue';
 import { openInBrowser } from '@/utils/browser';
+import { getProxiedMediaUrl } from '@/utils/mediaProxy';
 
 const store = useAppStore();
 const { t } = useI18n();
@@ -101,34 +102,8 @@ function setFeedUrlCache(articleId: number, feedUrl: string | undefined) {
   feedUrlCache.value = next;
 }
 
-function encodeBase64(value: string): string {
-  try {
-    return btoa(unescape(encodeURIComponent(value)));
-  } catch (error) {
-    console.error('Failed to base64 encode value:', error);
-    return '';
-  }
-}
-
 function buildMediaProxyUrl(imageUrl: string, referer?: string): string {
-  if (!imageUrl) return '';
-  if (
-    imageUrl.startsWith('data:') ||
-    imageUrl.startsWith('blob:') ||
-    imageUrl.includes('/api/media/proxy')
-  ) {
-    return imageUrl;
-  }
-  const urlB64 = encodeBase64(imageUrl);
-  if (!urlB64) return imageUrl;
-  let proxyUrl = `/api/media/proxy?url_b64=${urlB64}`;
-  if (referer) {
-    const refererB64 = encodeBase64(referer);
-    if (refererB64) {
-      proxyUrl += `&referer_b64=${refererB64}`;
-    }
-  }
-  return proxyUrl;
+  return getProxiedMediaUrl(imageUrl, referer);
 }
 
 function getProxyImageUrl(articleId: number, imageUrl: string): string {
