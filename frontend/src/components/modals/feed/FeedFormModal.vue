@@ -181,8 +181,13 @@ async function submit() {
       body.id = props.feed!.id;
     }
 
-    // Special handling for RSSHub URLs - use dedicated endpoint
-    if (body.url && typeof body.url === 'string' && body.url.startsWith('rsshub://')) {
+    // Special handling for RSSHub URLs - use dedicated endpoint for add only
+    if (
+      props.mode === 'add' &&
+      body.url &&
+      typeof body.url === 'string' &&
+      body.url.startsWith('rsshub://')
+    ) {
       const route = body.url.replace('rsshub://', '');
 
       try {
@@ -194,6 +199,7 @@ async function submit() {
             route: route,
             category: category.value,
             title: title.value,
+            is_image_mode: isImageMode.value,
           }),
         });
 

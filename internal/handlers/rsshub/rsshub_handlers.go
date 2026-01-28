@@ -27,9 +27,10 @@ func HandleAddFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Route    string `json:"route"`
-		Category string `json:"category"`
-		Title    string `json:"title"`
+		Route       string `json:"route"`
+		Category    string `json:"category"`
+		Title       string `json:"title"`
+		IsImageMode bool   `json:"is_image_mode"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -47,6 +48,47 @@ func HandleAddFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 	feedID, err := h.Fetcher.AddRSSHubSubscription(req.Route, req.Category, req.Title)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	feed, err := h.DB.GetFeedByID(feedID)
+	if err != nil {
+		http.Error(w, "feed created but failed to load settings: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if err := h.DB.UpdateFeed(
+		feed.ID,
+		feed.Title,
+		feed.URL,
+		feed.Category,
+		feed.ScriptPath,
+		feed.HideFromTimeline,
+		feed.ProxyURL,
+		feed.ProxyEnabled,
+		feed.RefreshInterval,
+		req.IsImageMode,
+		feed.Type,
+		feed.XPathItem,
+		feed.XPathItemTitle,
+		feed.XPathItemContent,
+		feed.XPathItemUri,
+		feed.XPathItemAuthor,
+		feed.XPathItemTimestamp,
+		feed.XPathItemTimeFormat,
+		feed.XPathItemThumbnail,
+		feed.XPathItemCategories,
+		feed.XPathItemUid,
+		feed.ArticleViewMode,
+		feed.AutoExpandContent,
+		feed.EmailAddress,
+		feed.EmailIMAPServer,
+		feed.EmailUsername,
+		feed.EmailPassword,
+		feed.EmailFolder,
+		feed.EmailIMAPPort,
+	); err != nil {
+		http.Error(w, "feed created but failed to update settings: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
