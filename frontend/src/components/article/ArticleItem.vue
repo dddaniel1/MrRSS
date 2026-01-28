@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onBeforeUnmount, onUnmounted } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { PhEyeSlash, PhStar, PhClockCountdown } from '@phosphor-icons/vue';
+import { PhEyeSlash, PhStar, PhClockCountdown, PhPlay, PhPause } from '@phosphor-icons/vue';
 import type { Article } from '@/types/models';
 import { formatDate as formatDateUtil } from '@/utils/date';
 import { getProxiedMediaUrl, isMediaCacheEnabled } from '@/utils/mediaProxy';
@@ -9,6 +9,7 @@ import { useShowPreviewImages } from '@/composables/ui/useShowPreviewImages';
 import { useAppStore } from '@/stores/app';
 import { useSettings } from '@/composables/core/useSettings';
 import { imageCache } from '@/utils/imageCache';
+import { useGlobalAudioPlayer } from '@/composables/article/useGlobalAudioPlayer';
 
 interface Props {
   article: Article;
@@ -28,6 +29,7 @@ const { t, locale } = useI18n();
 const { showPreviewImages } = useShowPreviewImages();
 const { settings } = useSettings();
 const store = useAppStore();
+const { currentSourceUrl, isPlaying, toggleArticlePlayback } = useGlobalAudioPlayer();
 
 // Compact mode setting
 const compactMode = computed(() => {
@@ -101,6 +103,14 @@ const imageUrl = computed(() => {
 
 const shouldShowImage = computed(() => {
   return showPreviewImages.value && props.article.image_url;
+});
+
+const shouldShowAudioOverlay = computed(() => {
+  return !!props.article.audio_url && shouldShowImage.value && !compactMode.value;
+});
+
+const isPlayingThisArticle = computed(() => {
+  return !!props.article.audio_url && currentSourceUrl.value === props.article.audio_url && isPlaying.value;
 });
 
 // Track if image has failed to load - use a ref to avoid recomputation
@@ -192,6 +202,17 @@ function handleImageError(event: Event) {
   imageCache.handleLoadError(url);
 }
 
+async function handleAudioToggle(event: MouseEvent) {
+  event.preventDefault();
+  event.stopPropagation();
+  if (!props.article.audio_url) return;
+  await toggleArticlePlayback({
+    url: props.article.audio_url,
+    title: props.article.title,
+    articleId: props.article.id,
+  });
+}
+
 // Hover mark as read functionality
 function handleMouseEnter() {
   // Don't mark as read if:
@@ -275,7 +296,7 @@ onUnmounted(() => {
     <div
       v-if="shouldShowImage && !imageFailed && !compactMode"
       ref="imageContainerRef"
-      class="article-thumbnail-placeholder"
+      class="article-thumbnail-placeholder relative"
     >
       <img
         v-if="imageInViewport && imageUrl"
@@ -287,6 +308,17 @@ onUnmounted(() => {
         @load="handleImageLoad"
         @error="handleImageError"
       />
+      <button
+        v-if="shouldShowAudioOverlay"
+        class="article-thumbnail-play"
+        :title="
+          isPlayingThisArticle ? t('article.audioPlayer.pause') : t('article.audioPlayer.play')
+        "
+        @click="handleAudioToggle"
+      >
+        <PhPause v-if="isPlayingThisArticle" :size="14" class="text-white" />
+        <PhPlay v-else :size="14" class="text-white ml-0.5" />
+      </button>
       <!-- Loading placeholder - only shown while loading -->
       <div
         v-if="imageLoading && imageInViewport"
@@ -533,6 +565,11 @@ onUnmounted(() => {
   @apply w-full h-full bg-bg-tertiary animate-pulse;
   /* Minimal styling for loading state */
   contain: layout style;
+}
+
+.article-thumbnail-play {
+  @apply absolute inset-0 m-auto w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/55 hover:bg-black/70 flex items-center justify-center transition-colors;
+  z-index: 1;
 }
 
 /* Responsive optimizations for medium screens */

@@ -5,6 +5,7 @@ import { openInBrowser } from '@/utils/browser';
 import { copyToClipboard } from '@/utils/clipboard';
 import type { Article } from '@/types/models';
 import { proxyImagesInHtml, isMediaCacheEnabled } from '@/utils/mediaProxy';
+import { useGlobalAudioPlayer } from '@/composables/article/useGlobalAudioPlayer';
 
 type ViewMode = 'original' | 'rendered' | 'external';
 type RenderAction = 'showContent' | 'showOriginal' | null;
@@ -123,6 +124,7 @@ export function useArticleDetail() {
   const imageViewerAlt = ref('');
   const imageViewerImages = ref<string[]>([]);
   const imageViewerInitialIndex = ref(0);
+  const { playArticleAudio, seekToTime } = useGlobalAudioPlayer();
 
   // Watch for article changes and apply view mode
   watch(
@@ -537,6 +539,19 @@ export function useArticleDetail() {
 
             // Get the href
             let href = link.getAttribute('href');
+            const linkText = link.textContent?.trim() || '';
+
+            const timeInSeconds = parseTimecodeFromLink(linkText, href || '');
+            if (timeInSeconds !== null && article.value?.audio_url) {
+              playArticleAudio({
+                url: article.value.audio_url,
+                title: article.value.title,
+                articleId: article.value.id,
+              }).then(() => {
+                seekToTime(timeInSeconds);
+              });
+              return;
+            }
             if (href) {
               // Convert relative URLs to absolute URLs
               // If it starts with / or is a relative path, convert to absolute using article URL
@@ -576,6 +591,48 @@ export function useArticleDetail() {
         console.error('Error attaching event listeners to link:', error);
       }
     });
+  }
+
+  function parseTimecodeFromLink(text: string, href: string): number | null {
+    const normalizedText = text.replace(/^#/, '').trim();
+    const textSeconds = parseTimecodeToSeconds(normalizedText);
+    if (textSeconds !== null) return textSeconds;
+
+    const hrefMatch = href.match(/(?:[?&#](?:t|start)=)(\d{1,2}(?::\d{2}){1,2}|\d+)/i);
+    if (hrefMatch?.[1]) {
+      const value = hrefMatch[1];
+      const fromHref = parseTimecodeToSeconds(value);
+      if (fromHref !== null) return fromHref;
+      const asNumber = Number.parseInt(value, 10);
+      if (!Number.isNaN(asNumber)) return asNumber;
+    }
+
+    return null;
+  }
+
+  function parseTimecodeToSeconds(value: string): number | null {
+    if (!value) return null;
+
+    if (/^\d+$/.test(value)) {
+      return Number.parseInt(value, 10);
+    }
+
+    const parts = value.split(':').map((part) => Number.parseInt(part, 10));
+    if (parts.some((part) => Number.isNaN(part))) return null;
+
+    if (parts.length === 2) {
+      const [minutes, seconds] = parts;
+      if (seconds >= 60) return null;
+      return minutes * 60 + seconds;
+    }
+
+    if (parts.length === 3) {
+      const [hours, minutes, seconds] = parts;
+      if (minutes >= 60 || seconds >= 60) return null;
+      return hours * 3600 + minutes * 60 + seconds;
+    }
+
+    return null;
   }
 
   function closeImageViewer() {

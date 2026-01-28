@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import {
   PhMusicNotes,
   PhSpeakerHigh,
@@ -11,59 +11,52 @@ import {
   PhFastForward,
 } from '@phosphor-icons/vue';
 import { useI18n } from 'vue-i18n';
+import { useGlobalAudioPlayer } from '@/composables/article/useGlobalAudioPlayer';
 
 interface Props {
   audioUrl: string;
   articleTitle: string;
+  articleId?: number;
 }
 
 const props = defineProps<Props>();
 
 const { t } = useI18n();
 
-const audioRef = ref<HTMLAudioElement | null>(null);
-const isPlaying = ref(false);
-const currentTime = ref(0);
-const duration = ref(0);
-const buffered = ref(0); // Buffered progress
-const isLoading = ref(false); // Loading state
-const hasLoadedMetadata = ref(false); // Metadata loaded state
+const {
+  currentSourceUrl,
+  isPlaying,
+  currentTime,
+  duration,
+  buffered,
+  isLoading,
+  playbackSpeed,
+  volume,
+  toggleArticlePlayback,
+  prepareArticleAudio,
+  seekToTime,
+  cycleSpeed,
+  setVolume,
+  skipBackward,
+  skipForward,
+} = useGlobalAudioPlayer();
 
-// Local audio controls (not global settings)
-const playbackSpeed = ref(1.0);
-const volume = ref(1.0);
+const isCurrentSource = computed(() => currentSourceUrl.value === props.audioUrl);
+const displayIsPlaying = computed(() => isCurrentSource.value && isPlaying.value);
+const displayIsLoading = computed(() => isCurrentSource.value && isLoading.value);
+const displayCurrentTime = computed(() => (isCurrentSource.value ? currentTime.value : 0));
+const displayDuration = computed(() => (isCurrentSource.value ? duration.value : 0));
+const displayBuffered = computed(() => (isCurrentSource.value ? buffered.value : 0));
 
-// Load metadata on mount to display duration immediately
 onMounted(() => {
-  if (audioRef.value) {
-    // Load metadata to get duration without starting playback
-    audioRef.value.load();
+  if (!currentSourceUrl.value) {
+    prepareArticleAudio({
+      url: props.audioUrl,
+      title: props.articleTitle,
+      articleId: props.articleId,
+    });
   }
 });
-
-// Speed options
-const speedOptions = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
-const currentSpeedIndex = ref(2); // Default to 1.0 (index 2)
-
-// Show loading state
-let loadingTimeout: number | null = null;
-function showLoading() {
-  if (loadingTimeout !== null) {
-    clearTimeout(loadingTimeout);
-  }
-  // Show loading after a short delay to avoid flickering
-  loadingTimeout = window.setTimeout(() => {
-    isLoading.value = true;
-  }, 200);
-}
-
-function hideLoading() {
-  if (loadingTimeout !== null) {
-    clearTimeout(loadingTimeout);
-    loadingTimeout = null;
-  }
-  isLoading.value = false;
-}
 
 // Format time in MM:SS format
 function formatTime(seconds: number): string {
@@ -73,147 +66,19 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-// Toggle play/pause
-async function togglePlay() {
-  if (!audioRef.value) return;
-
-  if (isPlaying.value) {
-    audioRef.value.pause();
-  } else {
-    // Show loading state immediately when trying to play
-    showLoading();
-    try {
-      await audioRef.value.play();
-    } catch (err) {
-      console.error('[AudioPlayer] Failed to play audio:', err);
-      hideLoading();
-      window.showToast(t('article.audioPlayer.audioPlaybackError'), 'error');
-    }
-  }
+async function handleTogglePlay() {
+  await toggleArticlePlayback({
+    url: props.audioUrl,
+    title: props.articleTitle,
+    articleId: props.articleId,
+  });
 }
-
-// Handle audio events
-function onPlay() {
-  isPlaying.value = true;
-  // Don't hide loading immediately, wait for actual audio playback
-}
-
-function onPause() {
-  isPlaying.value = false;
-  hideLoading();
-}
-
-function onTimeUpdate() {
-  if (!audioRef.value) return;
-  currentTime.value = audioRef.value.currentTime;
-  updateBufferedProgress();
-  // Hide loading when we're actually playing and making progress
-  if (isLoading.value && isPlaying.value && currentTime.value > 0) {
-    hideLoading();
-  }
-}
-
-function onLoadedMetadata() {
-  if (!audioRef.value) return;
-  duration.value = audioRef.value.duration;
-  hasLoadedMetadata.value = true;
-  updateBufferedProgress();
-}
-
-function onEnded() {
-  isPlaying.value = false;
-  currentTime.value = 0;
-  hideLoading();
-}
-
-function onWaiting() {
-  // Browser is buffering data, show loading if we're playing
-  if (isPlaying.value) {
-    showLoading();
-  }
-}
-
-function onCanPlay() {
-  // Audio has enough data to start playing
-  hasLoadedMetadata.value = true;
-  // Always hide loading when audio can play
-  // This ensures loading state is cleared once data is ready
-  hideLoading();
-}
-
-// Handle when audio actually starts playing (fired when playback resumes)
-function onPlaying() {
-  hideLoading();
-}
-
-// Handle seeking start
-function onSeeking() {
-  // When user seeks, check if we need to show loading
-  // Only show loading if we're currently playing
-  if (audioRef.value && isPlaying.value) {
-    const currentTime = audioRef.value.currentTime;
-    const buffered = audioRef.value.buffered;
-    let isBuffered = false;
-
-    if (buffered.length > 0) {
-      for (let i = 0; i < buffered.length; i++) {
-        const start = buffered.start(i);
-        const end = buffered.end(i);
-        if (currentTime >= start && currentTime <= end) {
-          isBuffered = true;
-          break;
-        }
-      }
-    }
-
-    if (!isBuffered) {
-      showLoading();
-    }
-  }
-}
-
-// Handle seek complete
-function onSeeked() {
-  // Seek is complete, hide loading if we're not playing
-  // The canplay event will hide it when ready to play
-  updateBufferedProgress();
-  if (!isPlaying.value) {
-    hideLoading();
-  }
-}
-
-// Update buffered progress
-function updateBufferedProgress() {
-  if (!audioRef.value || !duration.value) {
-    buffered.value = 0;
-    return;
-  }
-
-  try {
-    const audioBuffered = audioRef.value.buffered;
-    if (audioBuffered && audioBuffered.length > 0) {
-      const bufferedEnd = audioBuffered.end(audioBuffered.length - 1);
-      buffered.value = (bufferedEnd / duration.value) * 100;
-    } else {
-      buffered.value = 0;
-    }
-  } catch {
-    // If accessing buffered fails, just set to 0
-    buffered.value = 0;
-  }
-}
-
-// Watch for time updates to update buffer
-watch(currentTime, () => {
-  updateBufferedProgress();
-});
 
 // Handle dragging on progress bar
 const isDragging = ref(false);
 let progressBarRect: DOMRect | null = null;
 
 function onProgressMouseDown(event: MouseEvent) {
-  if (!audioRef.value) return;
   const progressBar = event.currentTarget as HTMLElement;
   isDragging.value = true;
   progressBarRect = progressBar.getBoundingClientRect();
@@ -242,72 +107,21 @@ function onProgressMouseDown(event: MouseEvent) {
 
 // Calculate seek time from mouse event
 function calculateSeekPosition(event: MouseEvent): number {
-  if (!progressBarRect || !duration.value) return 0;
+  if (!progressBarRect || !displayDuration.value) return 0;
   const clickX = event.clientX - progressBarRect.left;
   const percentage = Math.max(0, Math.min(1, clickX / progressBarRect.width));
-  return percentage * duration.value;
-}
-
-// Seek to specific time and handle loading state
-function seekToTime(newTime: number) {
-  if (!audioRef.value) return;
-
-  // Show loading state if seeking to unbuffered region
-  const buffered = audioRef.value.buffered;
-  let isBuffered = false;
-  if (buffered.length > 0) {
-    for (let i = 0; i < buffered.length; i++) {
-      const start = buffered.start(i);
-      const end = buffered.end(i);
-      if (newTime >= start && newTime <= end) {
-        isBuffered = true;
-        break;
-      }
-    }
-  }
-
-  // If seeking to unbuffered region, show loading state
-  if (!isBuffered && isPlaying.value) {
-    showLoading();
-  }
-
-  audioRef.value.currentTime = newTime;
+  return percentage * displayDuration.value;
 }
 
 // Computed progress percentage
 const progressPercentage = computed(() => {
-  if (!duration.value) return 0;
-  return (currentTime.value / duration.value) * 100;
+  if (!displayDuration.value) return 0;
+  return (displayCurrentTime.value / displayDuration.value) * 100;
 });
 
-// Change playback speed
-function cycleSpeed() {
-  currentSpeedIndex.value = (currentSpeedIndex.value + 1) % speedOptions.length;
-  playbackSpeed.value = speedOptions[currentSpeedIndex.value];
-  if (audioRef.value) {
-    audioRef.value.playbackRate = playbackSpeed.value;
-  }
-}
-
-// Change volume
 function onVolumeChange(event: Event) {
   const target = event.target as HTMLInputElement;
-  volume.value = parseFloat(target.value);
-  if (audioRef.value) {
-    audioRef.value.volume = volume.value;
-  }
-}
-
-// Skip backward 10 seconds
-function skipBackward() {
-  if (!audioRef.value) return;
-  audioRef.value.currentTime = Math.max(0, audioRef.value.currentTime - 10);
-}
-
-// Skip forward 10 seconds
-function skipForward() {
-  if (!audioRef.value) return;
-  audioRef.value.currentTime = Math.min(duration.value, audioRef.value.currentTime + 10);
+  setVolume(parseFloat(target.value));
 }
 
 // Extract filename from audio URL
@@ -337,24 +151,6 @@ const downloadFilename = computed(() => {
       }}</span>
     </div>
 
-    <!-- Audio element (hidden) -->
-    <audio
-      ref="audioRef"
-      :src="audioUrl"
-      preload="metadata"
-      @play="onPlay"
-      @pause="onPause"
-      @playing="onPlaying"
-      @seeking="onSeeking"
-      @seeked="onSeeked"
-      @timeupdate="onTimeUpdate"
-      @loadedmetadata="onLoadedMetadata"
-      @ended="onEnded"
-      @waiting="onWaiting"
-      @canplay="onCanPlay"
-      @progress="updateBufferedProgress"
-    />
-
     <!-- Custom audio controls -->
     <div class="space-y-3">
       <!-- Progress bar row -->
@@ -371,11 +167,11 @@ const downloadFilename = computed(() => {
         <!-- Play/Pause button -->
         <button
           class="flex items-center justify-center w-10 h-10 rounded-full bg-accent hover:bg-accent/90 transition-colors flex-shrink-0 relative"
-          :title="isPlaying ? t('article.audioPlayer.pause') : t('article.audioPlayer.play')"
-          @click="togglePlay"
+          :title="displayIsPlaying ? t('article.audioPlayer.pause') : t('article.audioPlayer.play')"
+          @click="handleTogglePlay"
         >
-          <PhSpinner v-if="isLoading" :size="20" class="text-white animate-spin" />
-          <PhPlay v-else-if="!isPlaying" :size="20" class="text-white ml-0.5" />
+          <PhSpinner v-if="displayIsLoading" :size="20" class="text-white animate-spin" />
+          <PhPlay v-else-if="!displayIsPlaying" :size="20" class="text-white ml-0.5" />
           <PhPause v-else :size="20" class="text-white" />
         </button>
 
@@ -391,7 +187,7 @@ const downloadFilename = computed(() => {
         <!-- Progress bar -->
         <div class="flex-1 flex items-center gap-2">
           <span class="text-xs text-text-secondary min-w-[40px] text-right">{{
-            formatTime(currentTime)
+            formatTime(displayCurrentTime)
           }}</span>
           <div
             class="flex-1 h-2 bg-bg-tertiary rounded-full cursor-pointer relative group"
@@ -400,7 +196,7 @@ const downloadFilename = computed(() => {
             <!-- Buffered progress -->
             <div
               class="absolute top-0 left-0 h-full bg-bg-hover rounded-full transition-all duration-300"
-              :style="{ width: `${Math.min(buffered, 100)}%` }"
+              :style="{ width: `${Math.min(displayBuffered, 100)}%` }"
             />
             <!-- Played progress -->
             <div
@@ -415,13 +211,15 @@ const downloadFilename = computed(() => {
             />
             <!-- Loading text indicator -->
             <span
-              v-if="isLoading"
+              v-if="displayIsLoading"
               class="absolute left-1/2 -translate-x-1/2 top-1/2 -translate-y-1/2 text-[10px] text-text-secondary font-medium px-2 py-0.5 bg-bg-tertiary/95 rounded-full backdrop-blur-sm whitespace-nowrap z-10"
             >
               {{ t('common.pagination.loading') }}...
             </span>
           </div>
-          <span class="text-xs text-text-secondary min-w-[40px]">{{ formatTime(duration) }}</span>
+          <span class="text-xs text-text-secondary min-w-[40px]">{{
+            formatTime(displayDuration)
+          }}</span>
         </div>
       </div>
 

@@ -826,6 +826,7 @@ onBeforeUnmount(() => {
         v-if="article.audio_url"
         :audio-url="article.audio_url"
         :article-title="article.title"
+        :article-id="article.id"
       />
 
       <!-- Video Player (if article has video) -->
