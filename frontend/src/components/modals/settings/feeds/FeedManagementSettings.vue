@@ -117,10 +117,12 @@ const selectedCount = computed(() => selectedFeeds.value.length);
 
 const isAllSelected = computed(() => {
   if (!store.feeds || store.feeds.length === 0) return false;
+  const visibleFeeds = filteredFeeds.value;
+  if (visibleFeeds.length === 0) return false;
   // Get non-FreshRSS feeds (RSSHub feeds can be selected)
-  const nonManagedFeeds = store.feeds.filter((f) => !f.is_freshrss_source);
+  const nonManagedFeeds = visibleFeeds.filter((f) => !f.is_freshrss_source);
   if (nonManagedFeeds.length === 0) return false;
-  // Check if all non-managed feeds are selected
+  // Check if all visible non-managed feeds are selected
   return nonManagedFeeds.every((f) => selectedFeeds.value.includes(f.id));
 });
 
@@ -138,7 +140,9 @@ function toggleSelectAll(e: Event) {
   if (!store.feeds) return;
   if (target.checked) {
     // Select only non-FreshRSS feeds (RSSHub feeds can be selected)
-    selectedFeeds.value = store.feeds.filter((f) => !f.is_freshrss_source).map((f) => f.id);
+    selectedFeeds.value = filteredFeeds.value
+      .filter((f) => !f.is_freshrss_source)
+      .map((f) => f.id);
   } else {
     selectedFeeds.value = [];
   }
