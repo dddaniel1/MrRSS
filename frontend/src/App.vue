@@ -5,6 +5,7 @@ import Sidebar from './components/sidebar/Sidebar.vue';
 import ArticleList from './components/article/ArticleList.vue';
 import ArticleDetail from './components/article/ArticleDetail.vue';
 import ImageGalleryView from './components/article/ImageGalleryView.vue';
+import VideoGalleryView from './components/article/VideoGalleryView.vue';
 import AddFeedModal from './components/modals/feed/AddFeedModal.vue';
 import EditFeedModal from './components/modals/feed/EditFeedModal.vue';
 import SettingsModal from './components/modals/SettingsModal.vue';
@@ -36,6 +37,7 @@ const isSidebarOpen = ref(true);
 
 // Check if we're in image gallery mode
 const isImageGalleryMode = computed(() => store.currentFilter === 'imageGallery');
+const isVideoGalleryMode = computed(() => store.currentFilter === 'videoGallery');
 
 // Use composables
 const { confirmDialog, inputDialog, toasts, removeToast, installGlobalHandlers } =
@@ -273,6 +275,11 @@ function onFeedUpdated(): void {
     <!-- Show ImageGalleryView when in image gallery mode -->
     <template v-if="isImageGalleryMode">
       <ImageGalleryView :is-sidebar-open="isSidebarOpen" @toggle-sidebar="toggleSidebar" />
+    </template>
+
+    <!-- Show VideoGalleryView when in video gallery mode -->
+    <template v-else-if="isVideoGalleryMode">
+      <VideoGalleryView :is-sidebar-open="isSidebarOpen" @toggle-sidebar="toggleSidebar" />
     </template>
 
     <!-- Show ArticleList and ArticleDetail when not in image gallery mode -->

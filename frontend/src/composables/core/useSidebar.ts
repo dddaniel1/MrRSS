@@ -49,6 +49,10 @@ export function useSidebar() {
     const filterKey = filterTypeMap[currentFilterType] || '';
 
     store.feeds.forEach((feed: Feed) => {
+      if (currentFilterType === 'videoGallery' && !feed.is_video_mode) {
+        return;
+      }
+
       const matchesSearch =
         query === '' ||
         feed.title.toLowerCase().includes(query) ||
@@ -113,6 +117,9 @@ export function useSidebar() {
     }
 
     store.feeds.forEach((feed: Feed) => {
+      if (store.currentFilter === 'videoGallery' && !feed.is_video_mode) {
+        return;
+      }
       if (feed.category) {
         const unreadCount = countsSource[feed.id] || 0;
         if (unreadCount > 0) {
@@ -122,7 +129,12 @@ export function useSidebar() {
     });
 
     // Calculate uncategorized count
-    const uncategorizedFeeds = store.feeds.filter((f) => !f.category);
+    const uncategorizedFeeds = store.feeds.filter((f) => {
+      if (store.currentFilter === 'videoGallery' && !f.is_video_mode) {
+        return false;
+      }
+      return !f.category;
+    });
     counts['uncategorized'] = uncategorizedFeeds.reduce((sum, feed) => {
       return sum + (countsSource[feed.id] || 0);
     }, 0);

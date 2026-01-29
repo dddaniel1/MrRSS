@@ -3,7 +3,7 @@ import { ref, computed, type Ref } from 'vue';
 import type { Article, Feed, UnreadCounts, RefreshProgress } from '@/types/models';
 import { useSettings } from '@/composables/core/useSettings';
 
-export type Filter = 'all' | 'unread' | 'favorites' | 'readLater' | 'imageGallery' | '';
+export type Filter = 'all' | 'unread' | 'favorites' | 'readLater' | 'imageGallery' | 'videoGallery' | '';
 export type ThemePreference = 'light' | 'dark' | 'auto';
 export type Theme = 'light' | 'dark';
 
@@ -107,7 +107,12 @@ export const useAppStore = defineStore('app', () => {
   function setFeed(feedId: number): void {
     // Check if this feed is an image mode feed
     const feed = feeds.value.find((f) => f.id === feedId);
-    if (feed?.is_image_mode) {
+    if (feed?.is_video_mode) {
+      currentFilter.value = 'videoGallery';
+      currentFeedId.value = feedId;
+      currentCategory.value = null;
+      tempSelection.value = { feedId, category: null };
+    } else if (feed?.is_image_mode) {
       // For image mode feeds, switch filter to image gallery
       currentFilter.value = 'imageGallery';
       currentFeedId.value = feedId;
@@ -137,10 +142,18 @@ export const useAppStore = defineStore('app', () => {
       return feedCategory === category || feedCategory.startsWith(category + '/');
     });
 
+    const allVideoMode = categoryFeeds.length > 0 && categoryFeeds.every((f) => f.is_video_mode);
     const allImageMode = categoryFeeds.length > 0 && categoryFeeds.every((f) => f.is_image_mode);
 
-    // If all feeds in this category are image mode, switch to image gallery filter
-    if (allImageMode) {
+    // If all feeds in this category are video mode, switch to video gallery filter
+    if (allVideoMode) {
+      currentFilter.value = 'videoGallery';
+      currentFeedId.value = null;
+      currentCategory.value = category;
+      tempSelection.value = { feedId: null, category };
+      // Don't call fetchArticles here - VideoGalleryView will handle fetching
+    } else if (allImageMode) {
+      // If all feeds in this category are image mode, switch to image gallery filter
       currentFilter.value = 'imageGallery';
       currentFeedId.value = null;
       currentCategory.value = category;

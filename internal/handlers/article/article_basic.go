@@ -196,3 +196,57 @@ func HandleImageGalleryArticles(h *core.Handler, w http.ResponseWriter, r *http.
 	}
 	json.NewEncoder(w).Encode(articles)
 }
+
+// HandleVideoGalleryArticles returns articles with video URLs and pagination.
+// @Summary      Get video gallery articles
+// @Description  Retrieve articles with video URLs and pagination
+// @Tags         articles
+// @Accept       json
+// @Produce      json
+// @Param        feed_id  query     int64   false  "Filter by feed ID"
+// @Param        category query     string  false  "Filter by category name"
+// @Param        page     query     int     false  "Page number (default: 1)"  minimum(1)
+// @Param        limit    query     int     false  "Items per page (default: 50)"  minimum(1)
+// @Success      200  {array}   models.Article  "List of video gallery articles"
+// @Failure      500  {object}  map[string]string  "Internal server error"
+// @Router       /articles/video-gallery [get]
+func HandleVideoGalleryArticles(h *core.Handler, w http.ResponseWriter, r *http.Request) {
+	pageStr := r.URL.Query().Get("page")
+	limitStr := r.URL.Query().Get("limit")
+	feedIDStr := r.URL.Query().Get("feed_id")
+
+	var category string
+	if _, exists := r.URL.Query()["category"]; exists {
+		category = r.URL.Query().Get("category")
+		if category == "" {
+			category = "\x00"
+		}
+	}
+
+	var feedID int64
+	if feedIDStr != "" {
+		feedID, _ = strconv.ParseInt(feedIDStr, 10, 64)
+	}
+
+	page := 1
+	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+		page = p
+	}
+
+	limit := 50
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		limit = l
+	}
+
+	offset := (page - 1) * limit
+
+	showHiddenStr, _ := h.DB.GetSetting("show_hidden_articles")
+	showHidden := showHiddenStr == "true"
+
+	articles, err := h.DB.GetVideoGalleryArticles(feedID, category, showHidden, limit, offset)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	json.NewEncoder(w).Encode(articles)
+}

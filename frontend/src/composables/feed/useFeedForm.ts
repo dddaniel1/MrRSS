@@ -23,6 +23,7 @@ export function useFeedForm(feed?: Feed) {
   const scriptPath = ref('');
   const hideFromTimeline = ref(false);
   const isImageMode = ref(false);
+  const isVideoMode = ref(false);
 
   // XPath fields
   const xpathType = ref<'HTML+XPath' | 'XML+XPath'>('HTML+XPath');
@@ -211,6 +212,7 @@ export function useFeedForm(feed?: Feed) {
     scriptPath.value = feed.script_path || '';
     hideFromTimeline.value = feed.hide_from_timeline || false;
     isImageMode.value = feed.is_image_mode || false;
+    isVideoMode.value = feed.is_video_mode || false;
 
     // Initialize XPath fields
     xpathType.value =
@@ -305,6 +307,7 @@ export function useFeedForm(feed?: Feed) {
     scriptPath.value = '';
     hideFromTimeline.value = false;
     isImageMode.value = false;
+    isVideoMode.value = false;
     xpathType.value = 'HTML+XPath';
     xpathItem.value = '';
     xpathItemTitle.value = '';
@@ -371,6 +374,7 @@ export function useFeedForm(feed?: Feed) {
     scriptPath,
     hideFromTimeline,
     isImageMode,
+    isVideoMode,
     xpathType,
     xpathItem,
     xpathItemTitle,

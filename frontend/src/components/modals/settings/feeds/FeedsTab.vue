@@ -24,6 +24,7 @@ const emit = defineEmits<{
   'batch-move': [ids: number[]];
   'batch-enable-image-mode': [ids: number[]];
   'batch-disable-image-mode': [ids: number[]];
+  'batch-update-video-mode': [payload: { ids: number[]; enabled: boolean }];
   'discover-all': [];
   'update:settings': [settings: SettingsData];
   'select-feed': [feedId: number];
@@ -81,6 +82,11 @@ function handleBatchDisableImageMode(ids: number[]) {
   emit('batch-disable-image-mode', ids);
 }
 
+function handleBatchUpdateVideoMode(payload: { ids: number[]; enabled: boolean }) {
+  emit('batch-update-video-mode', payload);
+}
+
+
 function handleSelectFeed(feedId: number) {
   emit('select-feed', feedId);
 }
@@ -103,6 +109,7 @@ function handleSelectFeed(feedId: number) {
       @batch-move="handleBatchMove"
       @batch-enable-image-mode="handleBatchEnableImageMode"
       @batch-disable-image-mode="handleBatchDisableImageMode"
+      @batch-update-video-mode="handleBatchUpdateVideoMode"
       @select-feed="handleSelectFeed"
     />
 

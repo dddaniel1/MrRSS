@@ -31,6 +31,7 @@ func HandleAddFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		Category    string `json:"category"`
 		Title       string `json:"title"`
 		IsImageMode bool   `json:"is_image_mode"`
+		IsVideoMode bool   `json:"is_video_mode"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -68,6 +69,7 @@ func HandleAddFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		feed.ProxyEnabled,
 		feed.RefreshInterval,
 		req.IsImageMode,
+		req.IsVideoMode,
 		feed.Type,
 		feed.XPathItem,
 		feed.XPathItemTitle,

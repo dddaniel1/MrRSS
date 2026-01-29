@@ -268,19 +268,25 @@ const filteredTree = computed(() => {
   if (drawerType.value !== 'feeds' || !tree.value) return { tree: {}, uncategorized: [] };
 
   const imageModeOnly = store.currentFilter === 'imageGallery';
+  const videoModeOnly = store.currentFilter === 'videoGallery';
+  const shouldIncludeFeed = (feed: Feed) => {
+    if (videoModeOnly) return !!feed.is_video_mode;
+    if (imageModeOnly) return !!feed.is_image_mode;
+    return true;
+  };
 
   // Filter feeds in categories
   const filteredTree: Record<string, any> = {};
 
   const treeData = tree.value.tree || {};
   for (const [name, data] of Object.entries(treeData)) {
-    const filteredFeeds = data._feeds.filter((f: Feed) => !imageModeOnly || f.is_image_mode);
+    const filteredFeeds = data._feeds.filter((f: Feed) => shouldIncludeFeed(f));
 
     // Filter children recursively
     const filterChildren = (children: Record<string, any>): Record<string, any> => {
       const result: Record<string, any> = {};
       for (const [childName, childData] of Object.entries(children)) {
-        const childFeeds = childData._feeds.filter((f: Feed) => !imageModeOnly || f.is_image_mode);
+        const childFeeds = childData._feeds.filter((f: Feed) => shouldIncludeFeed(f));
         const childChildren = filterChildren(childData._children);
 
         if (childFeeds.length > 0 || Object.keys(childChildren).length > 0) {
@@ -307,9 +313,7 @@ const filteredTree = computed(() => {
 
   // Filter uncategorized feeds
   const uncategorizedFeeds = tree.value?.uncategorized || [];
-  const filteredUncategorized = uncategorizedFeeds.filter(
-    (f: Feed) => !imageModeOnly || f.is_image_mode
-  );
+  const filteredUncategorized = uncategorizedFeeds.filter((f: Feed) => shouldIncludeFeed(f));
 
   return {
     tree: filteredTree,

@@ -518,6 +518,7 @@ func (s *BidirectionalSyncService) createFeedsFromSubscriptions(ctx context.Cont
 					existingFeed.ProxyEnabled,
 					existingFeed.RefreshInterval,
 					existingFeed.IsImageMode,
+					existingFeed.IsVideoMode,
 					existingFeed.Type,
 					existingFeed.XPathItem,
 					existingFeed.XPathItemTitle,

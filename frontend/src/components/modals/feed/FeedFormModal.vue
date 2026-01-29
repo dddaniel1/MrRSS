@@ -40,6 +40,7 @@ const {
   scriptPath,
   hideFromTimeline,
   isImageMode,
+  isVideoMode,
   xpathType,
   xpathItem,
   xpathItemTitle,
@@ -113,6 +114,7 @@ async function submit() {
       title: title.value,
       hide_from_timeline: hideFromTimeline.value,
       is_image_mode: isImageMode.value,
+      is_video_mode: isVideoMode.value,
       refresh_interval: getRefreshInterval(),
     };
 
@@ -200,6 +202,7 @@ async function submit() {
             category: category.value,
             title: title.value,
             is_image_mode: isImageMode.value,
+            is_video_mode: isVideoMode.value,
           }),
         });
 
@@ -619,6 +622,7 @@ async function submit() {
           v-if="showAdvancedSettings"
           :image-gallery-enabled="imageGalleryEnabled"
           :is-image-mode="isImageMode"
+          :is-video-mode="isVideoMode"
           :hide-from-timeline="hideFromTimeline"
           :article-view-mode="articleViewMode"
           :auto-expand-content="autoExpandContent"
@@ -631,6 +635,7 @@ async function submit() {
           :refresh-mode="refreshMode"
           :refresh-interval="refreshInterval"
           @update:is-image-mode="isImageMode = $event"
+          @update:is-video-mode="isVideoMode = $event"
           @update:hide-from-timeline="hideFromTimeline = $event"
           @update:article-view-mode="articleViewMode = $event"
           @update:auto-expand-content="autoExpandContent = $event"

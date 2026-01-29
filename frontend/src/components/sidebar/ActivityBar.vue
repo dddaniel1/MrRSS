@@ -11,6 +11,7 @@ import {
   PhTextIndent,
   PhTextOutdent,
   PhPlay,
+  PhYoutubeLogo,
   PhPause,
 } from '@phosphor-icons/vue';
 import { ref, onMounted, computed } from 'vue';
@@ -31,7 +32,7 @@ interface NavItem {
   icon: any;
   label: string;
   activeIcon?: any;
-  filterType: 'all' | 'unread' | 'favorites' | 'readLater' | 'imageGallery';
+  filterType: 'all' | 'unread' | 'favorites' | 'readLater' | 'imageGallery' | 'videoGallery';
 }
 
 const navItems: NavItem[] = [
@@ -65,6 +66,12 @@ const navItems: NavItem[] = [
     icon: PhImages,
     label: t('sidebar.activity.imageGallery'),
     filterType: 'imageGallery',
+  },
+  {
+    id: 'videoGallery',
+    icon: PhYoutubeLogo,
+    label: t('sidebar.activity.videoGallery'),
+    filterType: 'videoGallery',
   },
 ];
 

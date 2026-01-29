@@ -20,6 +20,7 @@ type Feed struct {
 	ProxyEnabled       bool      `json:"proxy_enabled"`         // Whether to use proxy for this feed
 	RefreshInterval    int       `json:"refresh_interval"`      // Custom refresh interval in minutes (0 = use global, -1 = intelligent, -2 = never, >0 = custom minutes)
 	IsImageMode        bool      `json:"is_image_mode"`         // Whether this feed is for image gallery mode
+	IsVideoMode        bool      `json:"is_video_mode"`         // Whether this feed is for video mode
 	// XPath support for HTML/XML scraping
 	Type                string `json:"type"`                   // "HTML+XPath" or "XML+XPath"
 	XPathItem           string `json:"xpath_item"`             // XPath to extract feed items
@@ -58,7 +59,7 @@ type Article struct {
 	URL                   string    `json:"url"`
 	ImageURL              string    `json:"image_url"`
 	AudioURL              string    `json:"audio_url"`
-	VideoURL              string    `json:"video_url"` // YouTube video URL for embedded player
+	VideoURL              string    `json:"video_url"` // Video URL for embedded player
 	PublishedAt           time.Time `json:"published_at"`
 	HasValidPublishedTime bool      `json:"-"` // Internal field, not serialized
 	IsRead                bool      `json:"is_read"`

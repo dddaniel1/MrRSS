@@ -14,6 +14,7 @@ import {
   PhCheckCircle,
   PhXCircle,
   PhImage,
+  PhPlay,
   PhMagnifyingGlass,
   PhX,
 } from '@phosphor-icons/vue';
@@ -36,6 +37,7 @@ const emit = defineEmits<{
   'batch-move': [ids: number[]];
   'batch-enable-image-mode': [ids: number[]];
   'batch-disable-image-mode': [ids: number[]];
+  'batch-update-video-mode': [payload: { ids: number[]; enabled: boolean }];
   'select-feed': [feedId: number];
 }>();
 
@@ -114,6 +116,14 @@ const sortedFeeds = computed(() => {
 // Feed count statistics
 const totalFeeds = computed(() => store.feeds?.length || 0);
 const selectedCount = computed(() => selectedFeeds.value.length);
+const isVideoModeSelected = computed(() => {
+  if (!store.feeds || selectedFeeds.value.length === 0) return false;
+  const selected = selectedFeeds.value
+    .map((id) => store.feeds.find((feed) => feed.id === id))
+    .filter((feed): feed is Feed => !!feed);
+  if (selected.length === 0) return false;
+  return selected.every((feed) => feed.is_video_mode);
+});
 
 const isAllSelected = computed(() => {
   if (!store.feeds || store.feeds.length === 0) return false;
@@ -183,6 +193,13 @@ function handleBatchDisableImageMode() {
   emit('batch-disable-image-mode', selectedFeeds.value);
   selectedFeeds.value = [];
 }
+
+function handleBatchUpdateVideoMode(enabled: boolean) {
+  if (selectedFeeds.value.length === 0) return;
+  emit('batch-update-video-mode', { ids: selectedFeeds.value, enabled });
+  selectedFeeds.value = [];
+}
+
 
 function getFavicon(url: string): string {
   try {
@@ -275,6 +292,19 @@ async function handleFeedClick(feed: Feed, event: Event) {
         class="py-1.5 px-2.5 sm:px-3"
         @click="handleBatchDisableImageMode"
       />
+      <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-border bg-bg-secondary">
+        <PhPlay :size="16" class="text-text-secondary" />
+        <span class="text-xs sm:text-sm text-text-primary">
+          {{ t('setting.feed.videoMode') }}
+        </span>
+        <input
+          type="checkbox"
+          class="toggle"
+          :checked="isVideoModeSelected"
+          :disabled="selectedFeeds.length === 0"
+          @change="handleBatchUpdateVideoMode(($event.target as HTMLInputElement).checked)"
+        />
+      </div>
     </div>
 
     <div class="border border-border rounded-lg bg-bg-secondary">
@@ -486,6 +516,12 @@ async function handleFeedClick(feed: Feed, event: Event) {
                 class="text-accent shrink-0 inline"
                 :title="t('setting.feed.imageMode')"
               />
+              <PhPlay
+                v-if="feed.is_video_mode"
+                :size="14"
+                class="text-accent shrink-0 inline"
+                :title="t('setting.feed.videoMode')"
+              />
               <PhEyeSlash
                 v-if="feed.hide_from_timeline"
                 :size="14"
@@ -622,4 +658,17 @@ async function handleFeedClick(feed: Feed, event: Event) {
 
 <style scoped>
 @reference "../../../../style.css";
+
+.toggle {
+  @apply w-10 h-5 appearance-none bg-bg-tertiary rounded-full relative cursor-pointer border border-border transition-colors checked:bg-accent checked:border-accent shrink-0;
+}
+
+.toggle::after {
+  content: '';
+  @apply absolute top-0.5 left-0.5 w-3.5 h-3.5 bg-white rounded-full shadow-sm transition-transform;
+}
+
+.toggle:checked::after {
+  transform: translateX(20px);
+}
 </style>

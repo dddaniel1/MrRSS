@@ -4,6 +4,7 @@ import {
   PhWarningCircle,
   PhEyeSlash,
   PhImage,
+  PhPlay,
   PhDotsSixVertical,
   PhLock,
 } from '@phosphor-icons/vue';
@@ -145,6 +146,12 @@ function handleDragEnd() {
       :size="16"
       class="text-accent shrink-0"
       :title="t('setting.feed.imageMode')"
+    />
+    <PhPlay
+      v-if="feed.is_video_mode"
+      :size="16"
+      class="text-accent shrink-0"
+      :title="t('setting.feed.videoMode')"
     />
     <PhEyeSlash
       v-if="feed.hide_from_timeline"

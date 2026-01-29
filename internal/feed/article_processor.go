@@ -269,6 +269,53 @@ func extractVideoURL(item *gofeed.Item) string {
 		}
 	}
 
+	// Check if this is a Bilibili link
+	if item.Link != "" && strings.Contains(item.Link, "bilibili.com/video/") {
+		if bvid := extractBilibiliBVID(item.Link); bvid != "" {
+			return "https://player.bilibili.com/player.html?bvid=" + bvid
+		}
+	}
+
+	// Fallback: parse HTML for embedded video sources
+	content := item.Content
+	if content == "" {
+		content = item.Description
+	}
+	if content != "" {
+		if iframeURL := extractIframeSrcFromHTML(content); iframeURL != "" {
+			return iframeURL
+		}
+		videoRe := regexp.MustCompile(`<video[^>]+src="([^"]+)"`)
+		if match := videoRe.FindStringSubmatch(content); len(match) > 1 {
+			return html.UnescapeString(match[1])
+		}
+		sourceRe := regexp.MustCompile(`<source[^>]+src="([^"]+)"`)
+		if match := sourceRe.FindStringSubmatch(content); len(match) > 1 {
+			return html.UnescapeString(match[1])
+		}
+	}
+
+	return ""
+}
+
+func extractBilibiliBVID(link string) string {
+	// Examples:
+	// https://www.bilibili.com/video/BV1HrrjB9EUj
+	// https://www.bilibili.com/video/BV1HrrjB9EUj/?spm_id_from=...
+	re := regexp.MustCompile(`bilibili\.com/video/([^/?&]+)`)
+	matches := re.FindStringSubmatch(link)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+	return ""
+}
+
+func extractIframeSrcFromHTML(htmlContent string) string {
+	re := regexp.MustCompile(`<iframe[^>]+src="([^"]+)"`)
+	matches := re.FindStringSubmatch(htmlContent)
+	if len(matches) > 1 {
+		return html.UnescapeString(matches[1])
+	}
 	return ""
 }
 

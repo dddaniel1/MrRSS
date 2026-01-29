@@ -60,6 +60,7 @@ const {
   handleBatchMove,
   handleBatchEnableImageMode,
   handleBatchDisableImageMode,
+  handleBatchUpdateVideoMode: updateVideoMode,
 } = useFeedManagement();
 
 const emit = defineEmits<{
@@ -84,6 +85,11 @@ onMounted(async () => {
 function handleDiscoverAll() {
   showDiscoverAllModal.value = true;
 }
+
+function handleBatchUpdateVideoMode(payload: { ids: number[]; enabled: boolean }) {
+  updateVideoMode(payload.ids, payload.enabled);
+}
+
 </script>
 
 <template>
@@ -219,6 +225,7 @@ function handleDiscoverAll() {
             @batch-move="handleBatchMove"
             @batch-enable-image-mode="handleBatchEnableImageMode"
             @batch-disable-image-mode="handleBatchDisableImageMode"
+            @batch-update-video-mode="handleBatchUpdateVideoMode"
             @discover-all="handleDiscoverAll"
             @select-feed="emit('close')"
             @update:settings="settings = $event"

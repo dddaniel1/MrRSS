@@ -39,6 +39,7 @@ export interface Feed {
   proxy_enabled?: boolean;
   refresh_interval?: number;
   is_image_mode?: boolean;
+  is_video_mode?: boolean;
   // XPath support
   type?: string;
   xpath_item?: string;

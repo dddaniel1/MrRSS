@@ -112,6 +112,10 @@ func (db *DB) Init() error {
 		// Error is ignored - if column exists, the operation fails harmlessly.
 		_, _ = db.Exec(`ALTER TABLE feeds ADD COLUMN is_image_mode BOOLEAN DEFAULT 0`)
 
+		// Migration: Add is_video_mode column to feeds table for video mode
+		// Error is ignored - if column exists, the operation fails harmlessly.
+		_, _ = db.Exec(`ALTER TABLE feeds ADD COLUMN is_video_mode BOOLEAN DEFAULT 0`)
+
 		// Migration: Add position column to feeds table for custom ordering
 		// Error is ignored - if column exists, the operation fails harmlessly.
 		_, _ = db.Exec(`ALTER TABLE feeds ADD COLUMN position INTEGER DEFAULT 0`)
@@ -242,6 +246,7 @@ func (db *DB) Init() error {
 					proxy_enabled BOOLEAN DEFAULT 0,
 					refresh_interval INTEGER DEFAULT 0,
 					is_image_mode BOOLEAN DEFAULT 0,
+					is_video_mode BOOLEAN DEFAULT 0,
 					type TEXT DEFAULT '',
 					xpath_item TEXT DEFAULT '',
 					xpath_item_title TEXT DEFAULT '',
@@ -272,7 +277,7 @@ func (db *DB) Init() error {
 					INSERT INTO feeds_new (
 						id, title, url, link, description, category, image_url, position, last_updated, last_error,
 						discovery_completed, script_path, hide_from_timeline, proxy_url, proxy_enabled, refresh_interval,
-						is_image_mode, type, xpath_item, xpath_item_title, xpath_item_content, xpath_item_uri,
+						is_image_mode, is_video_mode, type, xpath_item, xpath_item_title, xpath_item_content, xpath_item_uri,
 						xpath_item_author, xpath_item_timestamp, xpath_item_time_format, xpath_item_thumbnail,
 						xpath_item_categories, xpath_item_uid, article_view_mode, auto_expand_content,
 						email_address, email_imap_server, email_imap_port, email_username, email_password,
@@ -289,6 +294,7 @@ func (db *DB) Init() error {
 						COALESCE(proxy_enabled, 0) as proxy_enabled,
 						COALESCE(refresh_interval, 0) as refresh_interval,
 						COALESCE(is_image_mode, 0) as is_image_mode,
+						COALESCE(is_video_mode, 0) as is_video_mode,
 						COALESCE(type, '') as type,
 						COALESCE(xpath_item, '') as xpath_item,
 						COALESCE(xpath_item_title, '') as xpath_item_title,

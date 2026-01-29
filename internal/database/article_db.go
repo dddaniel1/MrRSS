@@ -750,6 +750,70 @@ func (db *DB) GetImageGalleryArticles(feedID int64, category string, showHidden 
 	return articles, nil
 }
 
+// GetVideoGalleryArticles retrieves articles with video URLs and pagination.
+// If feedID is provided, it gets video articles only from that feed.
+// If category is provided, it gets video articles from all feeds in that category.
+// Otherwise, it gets video articles from all feeds.
+func (db *DB) GetVideoGalleryArticles(feedID int64, category string, showHidden bool, limit, offset int) ([]models.Article, error) {
+	db.WaitForReady()
+	baseQuery := `
+		SELECT a.id, a.feed_id, a.title, a.url, a.image_url, a.audio_url, a.video_url, a.published_at, a.is_read, a.is_favorite, a.is_hidden, a.is_read_later, a.translated_title, a.summary, f.title, a.author
+		FROM articles a
+		JOIN feeds f ON a.feed_id = f.id
+		WHERE COALESCE(f.is_video_mode, 0) = 1
+	`
+	var args []interface{}
+
+	if !showHidden {
+		baseQuery += " AND a.is_hidden = 0"
+	}
+
+	baseQuery += " AND a.video_url IS NOT NULL AND a.video_url != ''"
+
+	if feedID > 0 {
+		baseQuery += " AND a.feed_id = ?"
+		args = append(args, feedID)
+	} else if category == "\x00" {
+		baseQuery += " AND (f.category IS NULL OR f.category = '')"
+	} else if category != "" {
+		baseQuery += " AND (f.category = ? OR f.category LIKE ?)"
+		args = append(args, category, category+"/%")
+	}
+
+	baseQuery += " ORDER BY a.published_at DESC LIMIT ? OFFSET ?"
+	args = append(args, limit, offset)
+
+	rows, err := db.Query(baseQuery, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	articles := make([]models.Article, 0)
+	for rows.Next() {
+		var a models.Article
+		var imageURL, audioURL, videoURL, translatedTitle, summary, author sql.NullString
+		var publishedAt sql.NullTime
+		if err := rows.Scan(&a.ID, &a.FeedID, &a.Title, &a.URL, &imageURL, &audioURL, &videoURL, &publishedAt, &a.IsRead, &a.IsFavorite, &a.IsHidden, &a.IsReadLater, &translatedTitle, &summary, &a.FeedTitle, &author); err != nil {
+			log.Println("Error scanning article:", err)
+			continue
+		}
+		a.ImageURL = imageURL.String
+		a.AudioURL = audioURL.String
+		a.VideoURL = videoURL.String
+		if publishedAt.Valid {
+			a.PublishedAt = publishedAt.Time
+		} else {
+			a.PublishedAt = time.Time{}
+		}
+		a.TranslatedTitle = translatedTitle.String
+		a.Summary = summary.String
+		a.Author = author.String
+		articles = append(articles, a)
+	}
+	return articles, nil
+}
+
 // UpdateArticleSummary updates the cached summary for an article.
 func (db *DB) UpdateArticleSummary(id int64, summary string) error {
 	db.WaitForReady()

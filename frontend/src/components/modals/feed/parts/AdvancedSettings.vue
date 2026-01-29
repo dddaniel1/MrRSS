@@ -6,6 +6,7 @@ import type { ProxyMode, RefreshMode } from '@/composables/feed/useFeedForm';
 interface Props {
   imageGalleryEnabled: boolean;
   isImageMode: boolean;
+  isVideoMode: boolean;
   hideFromTimeline: boolean;
   articleViewMode: 'global' | 'webpage' | 'rendered' | 'external';
   autoExpandContent: 'global' | 'enabled' | 'disabled';
@@ -23,6 +24,7 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
   'update:isImageMode': [value: boolean];
+  'update:isVideoMode': [value: boolean];
   'update:hideFromTimeline': [value: boolean];
   'update:articleViewMode': [value: 'global' | 'webpage' | 'rendered' | 'external'];
   'update:autoExpandContent': [value: 'global' | 'enabled' | 'disabled'];
@@ -61,6 +63,26 @@ const { t } = useI18n();
           type="checkbox"
           class="toggle"
           @change="emit('update:isImageMode', ($event.target as HTMLInputElement).checked)"
+        />
+      </label>
+    </div>
+
+    <!-- Video Mode Toggle -->
+    <div class="p-3 rounded-lg bg-bg-secondary border border-border">
+      <label class="flex items-center justify-between cursor-pointer">
+        <div>
+          <span class="font-semibold text-xs sm:text-sm text-text-primary">{{
+            t('setting.feed.videoMode')
+          }}</span>
+          <p class="text-[10px] sm:text-xs text-text-secondary mt-0.5">
+            {{ t('setting.feed.videoModeDesc') }}
+          </p>
+        </div>
+        <input
+          :checked="props.isVideoMode"
+          type="checkbox"
+          class="toggle"
+          @change="emit('update:isVideoMode', ($event.target as HTMLInputElement).checked)"
         />
       </label>
     </div>

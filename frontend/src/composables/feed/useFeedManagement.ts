@@ -261,6 +261,37 @@ export function useFeedManagement() {
   }
 
   /**
+   * Toggle video mode for multiple feeds
+   */
+  async function handleBatchUpdateVideoMode(selectedIds: number[], isVideoMode: boolean) {
+    if (selectedIds.length === 0) return;
+
+    try {
+      const response = await fetch('/api/feeds/bulk-update-video-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feed_ids: selectedIds,
+          is_video_mode: isVideoMode,
+        }),
+      });
+
+      if (!response.ok) {
+        window.showToast(t('common.errors.unknownError'), 'error');
+        return;
+      }
+
+      const result = await response.json();
+      store.fetchFeeds();
+      window.showToast(t('modal.feed.feedsUpdatedSuccess', { count: result.updated }), 'success');
+    } catch (error) {
+      console.error('Error updating video mode:', error);
+      window.showToast(t('common.errors.unknownError'), 'error');
+    }
+  }
+
+
+  /**
    * Move multiple feeds to a new category
    */
   async function handleBatchMove(selectedIds: number[]) {
@@ -290,6 +321,7 @@ export function useFeedManagement() {
           url: feed.url,
           category: newCategory,
           is_image_mode: feed.is_image_mode,
+          is_video_mode: feed.is_video_mode,
           website_url: feed.website_url,
           image_url: feed.image_url,
           script_path: feed.script_path,
@@ -330,5 +362,6 @@ export function useFeedManagement() {
     handleBatchMove,
     handleBatchEnableImageMode,
     handleBatchDisableImageMode,
+    handleBatchUpdateVideoMode,
   };
 }

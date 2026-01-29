@@ -149,6 +149,8 @@ function getFilterText(): string {
       return t('sidebar.activity.readLater');
     case 'imageGallery':
       return t('sidebar.activity.imageGallery');
+    case 'videoGallery':
+      return t('sidebar.activity.videoGallery');
     default:
       return '';
   }
