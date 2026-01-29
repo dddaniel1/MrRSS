@@ -39,6 +39,10 @@ func HandleAddFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.IsImageMode && req.IsVideoMode {
+		req.IsVideoMode = false
+	}
+
 	// Validate route
 	if req.Route == "" {
 		http.Error(w, "Route is required", http.StatusBadRequest)

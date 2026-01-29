@@ -87,6 +87,10 @@ func HandleAddFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.IsImageMode && req.IsVideoMode {
+		req.IsVideoMode = false
+	}
+
 	// Normalize the URL to ensure it has a protocol
 	req.URL = utils.NormalizeFeedURL(req.URL)
 
@@ -224,6 +228,10 @@ func HandleUpdateFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	if req.IsImageMode && req.IsVideoMode {
+		req.IsVideoMode = false
 	}
 
 	// Normalize the URL to ensure it has a protocol
@@ -460,6 +468,12 @@ func HandleUpdateFeedsImageModeBulk(h *core.Handler, w http.ResponseWriter, r *h
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	if req.IsImageMode {
+		if err := h.DB.UpdateFeedVideoModeBulk(req.FeedIDs, false); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -503,6 +517,12 @@ func HandleUpdateFeedsVideoModeBulk(h *core.Handler, w http.ResponseWriter, r *h
 	if err := h.DB.UpdateFeedVideoModeBulk(req.FeedIDs, req.IsVideoMode); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if req.IsVideoMode {
+		if err := h.DB.UpdateFeedImageModeBulk(req.FeedIDs, false); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

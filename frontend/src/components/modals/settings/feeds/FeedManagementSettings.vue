@@ -116,6 +116,14 @@ const sortedFeeds = computed(() => {
 // Feed count statistics
 const totalFeeds = computed(() => store.feeds?.length || 0);
 const selectedCount = computed(() => selectedFeeds.value.length);
+const isImageModeSelected = computed(() => {
+  if (!store.feeds || selectedFeeds.value.length === 0) return false;
+  const selected = selectedFeeds.value
+    .map((id) => store.feeds.find((feed) => feed.id === id))
+    .filter((feed): feed is Feed => !!feed);
+  if (selected.length === 0) return false;
+  return selected.every((feed) => feed.is_image_mode);
+});
 const isVideoModeSelected = computed(() => {
   if (!store.feeds || selectedFeeds.value.length === 0) return false;
   const selected = selectedFeeds.value
@@ -194,9 +202,25 @@ function handleBatchDisableImageMode() {
   selectedFeeds.value = [];
 }
 
+function handleBatchUpdateImageMode(enabled: boolean) {
+  if (selectedFeeds.value.length === 0) return;
+  const ids = [...selectedFeeds.value];
+  if (enabled) {
+    emit('batch-update-video-mode', { ids, enabled: false });
+    emit('batch-enable-image-mode', ids);
+  } else {
+    emit('batch-disable-image-mode', ids);
+  }
+  selectedFeeds.value = [];
+}
+
 function handleBatchUpdateVideoMode(enabled: boolean) {
   if (selectedFeeds.value.length === 0) return;
-  emit('batch-update-video-mode', { ids: selectedFeeds.value, enabled });
+  const ids = [...selectedFeeds.value];
+  if (enabled) {
+    emit('batch-disable-image-mode', ids);
+  }
+  emit('batch-update-video-mode', { ids, enabled });
   selectedFeeds.value = [];
 }
 
@@ -274,24 +298,22 @@ async function handleFeedClick(feed: Feed, event: Event) {
         class="py-1.5 px-2.5 sm:px-3"
         @click="handleBatchMove"
       />
-      <ButtonControl
+      <div
         v-if="props.imageGalleryEnabled"
-        :label="t('setting.feed.enableImageMode')"
-        :icon="PhImage"
-        :disabled="selectedFeeds.length === 0"
-        type="secondary"
-        class="py-1.5 px-2.5 sm:px-3"
-        @click="handleBatchEnableImageMode"
-      />
-      <ButtonControl
-        v-if="props.imageGalleryEnabled"
-        :label="t('setting.feed.disableImageMode')"
-        :icon="PhEyeSlash"
-        :disabled="selectedFeeds.length === 0"
-        type="secondary"
-        class="py-1.5 px-2.5 sm:px-3"
-        @click="handleBatchDisableImageMode"
-      />
+        class="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-border bg-bg-secondary"
+      >
+        <PhImage :size="16" class="text-text-secondary" />
+        <span class="text-xs sm:text-sm text-text-primary">
+          {{ t('setting.feed.imageMode') }}
+        </span>
+        <input
+          type="checkbox"
+          class="toggle"
+          :checked="isImageModeSelected"
+          :disabled="selectedFeeds.length === 0"
+          @change="handleBatchUpdateImageMode(($event.target as HTMLInputElement).checked)"
+        />
+      </div>
       <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-border bg-bg-secondary">
         <PhPlay :size="16" class="text-text-secondary" />
         <span class="text-xs sm:text-sm text-text-primary">

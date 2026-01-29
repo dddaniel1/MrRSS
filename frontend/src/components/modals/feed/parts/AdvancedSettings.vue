@@ -62,7 +62,13 @@ const { t } = useI18n();
           :checked="props.isImageMode"
           type="checkbox"
           class="toggle"
-          @change="emit('update:isImageMode', ($event.target as HTMLInputElement).checked)"
+          @change="
+            (event) => {
+              const checked = (event.target as HTMLInputElement).checked;
+              if (checked) emit('update:isVideoMode', false);
+              emit('update:isImageMode', checked);
+            }
+          "
         />
       </label>
     </div>
@@ -82,7 +88,13 @@ const { t } = useI18n();
           :checked="props.isVideoMode"
           type="checkbox"
           class="toggle"
-          @change="emit('update:isVideoMode', ($event.target as HTMLInputElement).checked)"
+          @change="
+            (event) => {
+              const checked = (event.target as HTMLInputElement).checked;
+              if (checked) emit('update:isImageMode', false);
+              emit('update:isVideoMode', checked);
+            }
+          "
         />
       </label>
     </div>
