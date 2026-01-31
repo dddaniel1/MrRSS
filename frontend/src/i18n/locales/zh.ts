@@ -77,6 +77,7 @@ const zh: TranslationMessages = {
       noContentAvailable: '暂无内容',
       renderContent: '渲染内容',
       selectArticle: '选择一篇文章开始阅读',
+      toc: '目录',
     },
     imageGallery: {
       actionFavorite: '添加到收藏',

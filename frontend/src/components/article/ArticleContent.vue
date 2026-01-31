@@ -35,6 +35,13 @@ interface SummaryResult {
   error?: string;
 }
 
+interface TocItem {
+  id: string;
+  text: string;
+  level: number;
+  top: number;
+}
+
 interface Props {
   article: Article;
   articleContent: string;
@@ -65,11 +72,17 @@ function handleRetryLoad() {
 const { settings: appSettings, fetchSettings } = useSettings();
 const store = useAppStore();
 const isChatPanelOpen = ref(false);
+const containerRef = ref<HTMLElement | null>(null);
+const tocItems = ref<TocItem[]>([]);
+const activeTocId = ref('');
 
 // Full-text fetching state
 const isFetchingFullArticle = ref(false);
 const fullArticleContent = ref('');
 const autoShowAllContent = ref(false);
+let tocObserver: MutationObserver | null = null;
+let tocRefreshTimer = 0;
+let tocScrollFrame = 0;
 
 // Computed property to determine if auto-expand should be enabled for this feed
 const shouldAutoExpandContent = computed(() => {
@@ -142,6 +155,15 @@ const showFullTextButton = computed(() => {
 // Computed for the content to display (full article if available, otherwise RSS content)
 const displayContent = computed(() => {
   return fullArticleContent.value || props.articleContent;
+});
+
+const tocBaseLevel = computed(() => {
+  if (tocItems.value.length === 0) return 1;
+  return tocItems.value.reduce((min, item) => Math.min(min, item.level), 6);
+});
+
+const showToc = computed(() => {
+  return props.showContent && tocItems.value.length > 1;
 });
 
 // Use composables for summary and translation
@@ -231,6 +253,139 @@ async function translateText(
     window.showToast(t('common.errors.translating'), 'error');
   }
   return { text: '', html: '' };
+}
+
+function escapeSelector(value: string): string {
+  if (typeof CSS !== 'undefined' && CSS.escape) {
+    return CSS.escape(value);
+  }
+  return value.replace(/[^a-zA-Z0-9_-]/g, '-');
+}
+
+function buildHeadingId(text: string, index: number, usedIds: Set<string>): string {
+  const baseText = text
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9_-]/g, '')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+  const base = baseText || `section-${index + 1}`;
+  let candidate = base;
+  let suffix = 1;
+  while (usedIds.has(candidate)) {
+    candidate = `${base}-${suffix}`;
+    suffix += 1;
+  }
+  usedIds.add(candidate);
+  return candidate;
+}
+
+function collectTocItems(): TocItem[] {
+  const container = containerRef.value;
+  if (!container) return [];
+  const prose = container.querySelector('.prose-content');
+  if (!prose) return [];
+  const headings = Array.from(prose.querySelectorAll('h1, h2, h3, h4, h5, h6')) as HTMLElement[];
+  const usedIds = new Set<string>();
+  const items: TocItem[] = [];
+  headings.forEach((heading, index) => {
+    const text = heading.textContent?.trim() || '';
+    if (!text) return;
+    let id = heading.getAttribute('id') || '';
+    if (!id || usedIds.has(id)) {
+      id = buildHeadingId(text, index, usedIds);
+      heading.setAttribute('id', id);
+    } else {
+      usedIds.add(id);
+    }
+    const level = Number.parseInt(heading.tagName.replace('H', ''), 10);
+    items.push({ id, text, level, top: 0 });
+  });
+  return items;
+}
+
+function updateTocPositions(): void {
+  const container = containerRef.value;
+  if (!container || tocItems.value.length === 0) return;
+  const containerRect = container.getBoundingClientRect();
+  tocItems.value = tocItems.value.map((item) => {
+    const selector = `#${escapeSelector(item.id)}`;
+    const heading = container.querySelector(selector) as HTMLElement | null;
+    if (!heading) return item;
+    const rect = heading.getBoundingClientRect();
+    const top = rect.top - containerRect.top + container.scrollTop;
+    return { ...item, top };
+  });
+}
+
+function updateActiveToc(): void {
+  const container = containerRef.value;
+  if (!container || tocItems.value.length === 0) return;
+  const scrollTop = container.scrollTop;
+  const offset = 120;
+  let active = tocItems.value[0];
+  for (const item of tocItems.value) {
+    if (item.top <= scrollTop + offset) {
+      active = item;
+    } else {
+      break;
+    }
+  }
+  activeTocId.value = active.id;
+}
+
+function refreshToc(): void {
+  tocItems.value = collectTocItems();
+  updateTocPositions();
+  updateActiveToc();
+}
+
+function scheduleTocRefresh(): void {
+  if (tocRefreshTimer) {
+    window.clearTimeout(tocRefreshTimer);
+  }
+  tocRefreshTimer = window.setTimeout(() => {
+    refreshToc();
+  }, 50);
+}
+
+function handleContainerScroll(): void {
+  if (tocScrollFrame) return;
+  tocScrollFrame = window.requestAnimationFrame(() => {
+    tocScrollFrame = 0;
+    updateActiveToc();
+  });
+}
+
+function scrollToHeading(id: string): void {
+  const container = containerRef.value;
+  if (!container) return;
+  const selector = `#${escapeSelector(id)}`;
+  const heading = container.querySelector(selector) as HTMLElement | null;
+  if (!heading) return;
+  const containerRect = container.getBoundingClientRect();
+  const rect = heading.getBoundingClientRect();
+  const targetTop = rect.top - containerRect.top + container.scrollTop - 12;
+  container.scrollTo({ top: Math.max(targetTop, 0), behavior: 'smooth' });
+}
+
+function startTocObserver(): void {
+  const container = containerRef.value;
+  if (!container) return;
+  const prose = container.querySelector('.prose-content');
+  if (!prose) return;
+  if (tocObserver) {
+    tocObserver.disconnect();
+  }
+  tocObserver = new MutationObserver(() => scheduleTocRefresh());
+  tocObserver.observe(prose, { childList: true, subtree: true, characterData: true });
+}
+
+function stopTocObserver(): void {
+  if (tocObserver) {
+    tocObserver.disconnect();
+    tocObserver = null;
+  }
 }
 
 // Force translate content
@@ -719,6 +874,27 @@ watch(
   { immediate: true } // Run immediately on component mount
 );
 
+watch(
+  () => [displayContent.value, props.article?.id, props.showContent] as const,
+  async () => {
+    if (!props.showContent) {
+      tocItems.value = [];
+      stopTocObserver();
+      return;
+    }
+    await nextTick();
+    startTocObserver();
+    scheduleTocRefresh();
+  },
+  { immediate: true }
+);
+
+watch(isTranslatingContent, (value) => {
+  if (!value) {
+    scheduleTocRefresh();
+  }
+});
+
 onMounted(async () => {
   await loadSettings();
   if (props.article) {
@@ -761,6 +937,13 @@ onMounted(async () => {
   }
 });
 
+onMounted(() => {
+  if (containerRef.value) {
+    containerRef.value.addEventListener('scroll', handleContainerScroll, { passive: true });
+  }
+  window.addEventListener('resize', scheduleTocRefresh);
+});
+
 // Ensure image interactions stay attached when content is (re)rendered
 watch(
   () => props.articleContent,
@@ -792,6 +975,18 @@ onBeforeUnmount(() => {
     cancelSummaryGeneration(props.article.id);
   }
 
+  if (containerRef.value) {
+    containerRef.value.removeEventListener('scroll', handleContainerScroll);
+  }
+  window.removeEventListener('resize', scheduleTocRefresh);
+  stopTocObserver();
+  if (tocRefreshTimer) {
+    window.clearTimeout(tocRefreshTimer);
+  }
+  if (tocScrollFrame) {
+    window.cancelAnimationFrame(tocScrollFrame);
+  }
+
   window.removeEventListener(
     'auto-show-all-content-changed',
     onAutoShowAllContentChanged as EventListener
@@ -802,77 +997,117 @@ onBeforeUnmount(() => {
 <template>
   <div
     class="flex-1 overflow-y-auto bg-bg-primary p-3 sm:p-6 scroll-smooth"
+    ref="containerRef"
     @click="handleContainerClick"
   >
-    <div
-      class="max-w-3xl mx-auto bg-bg-primary"
-      :class="{
-        'hide-translations': !showTranslations,
-        'translation-only-mode': translationSettings.translationOnlyMode,
-      }"
-    >
-      <ArticleTitle
-        :article="article"
-        :translated-title="translatedTitle"
-        :is-translating-title="isTranslatingTitle"
-        :translation-enabled="translationEnabled"
-        :translation-skipped="translationSkipped"
-        :is-translating-content="isTranslatingContent"
-        @force-translate="forceTranslateContent"
-      />
+    <div class="relative max-w-5xl mx-auto">
+      <div
+        class="max-w-3xl mx-auto bg-bg-primary"
+        :class="{
+          'hide-translations': !showTranslations,
+          'translation-only-mode': translationSettings.translationOnlyMode,
+        }"
+      >
+        <ArticleTitle
+          :article="article"
+          :translated-title="translatedTitle"
+          :is-translating-title="isTranslatingTitle"
+          :translation-enabled="translationEnabled"
+          :translation-skipped="translationSkipped"
+          :is-translating-content="isTranslatingContent"
+          @force-translate="forceTranslateContent"
+        />
 
-      <!-- Audio Player (if article has audio) -->
-      <AudioPlayer
-        v-if="article.audio_url"
-        :audio-url="article.audio_url"
-        :article-title="article.title"
-        :article-id="article.id"
-      />
+        <!-- Audio Player (if article has audio) -->
+        <AudioPlayer
+          v-if="article.audio_url"
+          :audio-url="article.audio_url"
+          :article-title="article.title"
+          :article-id="article.id"
+        />
 
-      <!-- Video Player (if article has video) -->
-      <VideoPlayer
-        v-if="article.video_url"
-        :video-url="article.video_url"
-        :article-title="article.title"
-      />
+        <!-- Video Player (if article has video) -->
+        <VideoPlayer
+          v-if="article.video_url"
+          :video-url="article.video_url"
+          :article-title="article.title"
+        />
 
-      <ArticleSummary
-        :summary-result="summaryResult"
-        :is-loading-summary="isLoadingSummary"
-        :translation-enabled="translationEnabled"
-        :summary-provider="summaryProvider"
-        :summary-trigger-mode="summaryTriggerMode"
-        :is-loading-content="props.isLoadingContent"
-        @generate-summary="generateSummary(props.article, true)"
-      />
+        <ArticleSummary
+          :summary-result="summaryResult"
+          :is-loading-summary="isLoadingSummary"
+          :translation-enabled="translationEnabled"
+          :summary-provider="summaryProvider"
+          :summary-trigger-mode="summaryTriggerMode"
+          :is-loading-content="props.isLoadingContent"
+          @generate-summary="generateSummary(props.article, true)"
+        />
 
-      <ArticleLoading v-if="isLoadingContent" />
+        <ArticleLoading v-if="isLoadingContent" />
 
-      <ArticleBody
-        v-else
-        :article-content="displayContent"
-        :is-translating-content="isTranslatingContent"
-        :has-media-content="!!(article.audio_url || article.video_url)"
-        :is-loading-content="isLoadingContent"
-        @retry-load="handleRetryLoad"
-      />
+        <ArticleBody
+          v-else
+          :article-content="displayContent"
+          :is-translating-content="isTranslatingContent"
+          :has-media-content="!!(article.audio_url || article.video_url)"
+          :is-loading-content="isLoadingContent"
+          @retry-load="handleRetryLoad"
+        />
 
-      <!-- Full-text fetch button -->
-      <div v-if="showFullTextButton" class="flex justify-center mt-4 mb-4">
-        <button
-          :disabled="isFetchingFullArticle"
-          class="btn-secondary-compact flex items-center gap-2"
-          @click="() => fetchFullArticle()"
-        >
-          <PhSpinnerGap v-if="isFetchingFullArticle" :size="14" class="animate-spin" />
-          <PhArticleNyTimes v-else :size="14" />
-          <span>{{
-            isFetchingFullArticle
-              ? t('article.action.fetchingFullArticle')
-              : t('article.action.fetchFullArticle')
-          }}</span>
-        </button>
+        <!-- Full-text fetch button -->
+        <div v-if="showFullTextButton" class="flex justify-center mt-4 mb-4">
+          <button
+            :disabled="isFetchingFullArticle"
+            class="btn-secondary-compact flex items-center gap-2"
+            @click="() => fetchFullArticle()"
+          >
+            <PhSpinnerGap v-if="isFetchingFullArticle" :size="14" class="animate-spin" />
+            <PhArticleNyTimes v-else :size="14" />
+            <span>{{
+              isFetchingFullArticle
+                ? t('article.action.fetchingFullArticle')
+                : t('article.action.fetchFullArticle')
+            }}</span>
+          </button>
+        </div>
       </div>
+
+      <aside
+        v-if="showToc"
+        class="hidden xl:block fixed top-1/2 -translate-y-1/2 right-4 h-[50vh] w-10 z-20 group"
+      >
+        <div
+          class="absolute right-0 top-1/2 -translate-y-1/2 h-16 w-2.5 rounded-full border border-border bg-bg-secondary/80 shadow-md"
+        >
+          <div class="flex h-full items-center justify-center">
+            <div class="h-8 w-0.5 rounded-full bg-text-secondary/50"></div>
+          </div>
+        </div>
+        <div
+          class="absolute right-10 top-1/2 -translate-y-1/2 rounded-lg border border-border bg-white px-3 py-3 shadow-sm w-56 opacity-0 translate-x-2 pointer-events-none transition-all duration-200 group-hover:opacity-100 group-hover:translate-x-0 group-hover:pointer-events-auto"
+        >
+          <div class="text-[11px] uppercase tracking-wide text-text-secondary mb-2">
+            {{ t('article.content.toc') }}
+          </div>
+          <nav class="max-h-[50vh] overflow-y-auto pr-1">
+            <button
+              v-for="item in tocItems"
+              :key="item.id"
+              type="button"
+              class="w-full text-left text-xs leading-5 transition-colors rounded-md px-2 py-1"
+              :class="
+                activeTocId === item.id
+                  ? 'bg-bg-tertiary text-text-primary'
+                  : 'text-text-secondary hover:text-text-primary'
+              "
+              :style="{ paddingLeft: `${(item.level - tocBaseLevel) * 12 + 8}px` }"
+              @click="scrollToHeading(item.id)"
+            >
+              <span class="block truncate">{{ item.text }}</span>
+            </button>
+          </nav>
+        </div>
+      </aside>
     </div>
 
     <!-- Chat Button (shown when content is loaded and chat is enabled) -->

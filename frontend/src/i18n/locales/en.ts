@@ -78,6 +78,7 @@ const en: TranslationMessages = {
       noContentAvailable: 'No content available',
       renderContent: 'Render Content',
       selectArticle: 'Select an article to start reading',
+      toc: 'Contents',
     },
     imageGallery: {
       actionFavorite: 'Add to Favorites',
