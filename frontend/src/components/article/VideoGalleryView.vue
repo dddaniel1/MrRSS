@@ -375,6 +375,6 @@ onUnmounted(() => {
 }
 
 .video-viewer-shell {
-  max-width: min(96vw, calc(90vh * 16 / 9));
+  max-width: min(80vw, calc(80vh * 16 / 9));
 }
 </style>
