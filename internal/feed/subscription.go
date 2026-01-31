@@ -104,6 +104,13 @@ func sanitizeFeedXML(xmlContent string) string {
 	linkPattern := regexp.MustCompile(`<link\s+[^>]*href=["'](file://|javascript:|data:|ftp://)[^"']*["'][^>]*/?>`)
 	cleaned = linkPattern.ReplaceAllString(cleaned, "")
 
+	// Some RSS feeds contain HTML <link ...> tags injected into the channel (e.g., prefetch hints)
+	// which are invalid in XML and can break RSS parsing. Remove these only for RSS feeds.
+	if strings.Contains(xmlContent, "<rss") {
+		invalidLinkPattern := regexp.MustCompile(`<link\s+[^>]*href=["'][^"']*["'][^>]*>`)
+		cleaned = invalidLinkPattern.ReplaceAllString(cleaned, "")
+	}
+
 	utils.DebugLog("sanitizeFeedXML: Removed non-HTTP links from feed XML")
 	return cleaned
 }
@@ -603,11 +610,15 @@ func (f *Fetcher) parseFeedWithFeedInternal(ctx context.Context, feed *models.Fe
 		debugTimer.LogWithTime("ParseString completed, err=%v", err)
 
 		if err == nil {
-			debugTimer.Stage("Successfully parsed sanitized feed")
-			utils.DebugLog("parseFeedWithFeedInternal: Successfully parsed sanitized feed for %s", actualURL)
-			// Fix Atom authors for feeds that use simple text format
-			fixFeedAuthors(parsedFeed, cleanedXML)
-			return parsedFeed, nil
+			if len(parsedFeed.Items) == 0 {
+				utils.DebugLog("parseFeedWithFeedInternal: Sanitized parse returned 0 items for %s, falling back to standard parsing", actualURL)
+			} else {
+				debugTimer.Stage("Successfully parsed sanitized feed")
+				utils.DebugLog("parseFeedWithFeedInternal: Successfully parsed sanitized feed for %s", actualURL)
+				// Fix Atom authors for feeds that use simple text format
+				fixFeedAuthors(parsedFeed, cleanedXML)
+				return parsedFeed, nil
+			}
 		}
 		utils.DebugLog("parseFeedWithFeedInternal: Parsing sanitized feed failed: %v", err)
 		// Fall through to standard parsing
@@ -664,7 +675,14 @@ func (f *Fetcher) parseFeedWithFeedInternal(ctx context.Context, feed *models.Fe
 			return nil, err
 		}
 	} else {
-		utils.DebugLog("parseFeedWithFeedInternal: Standard RSS parsing succeeded")
+		if len(parsedFeed.Items) == 0 {
+			if strings.Contains(cleanedXML, "<item") || strings.Contains(cleanedXML, "<entry") {
+				return nil, fmt.Errorf("parsed feed contains no items despite item tags")
+			}
+			utils.DebugLog("parseFeedWithFeedInternal: Standard RSS parsing returned 0 items for %s", actualURL)
+		} else {
+			utils.DebugLog("parseFeedWithFeedInternal: Standard RSS parsing succeeded")
+		}
 	}
 
 	return parsedFeed, nil
