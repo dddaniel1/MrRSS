@@ -20,9 +20,12 @@ export function getProxiedMediaUrl(url: string, referer?: string): string {
     return url;
   }
 
+  // Unwrap jintiankansha wrapper URLs for better proxy success
+  const unwrappedUrl = unwrapJintiankanshaUrl(url);
+
   // Don't proxy Douban blog images (hotlink protection causes proxy failures)
-  if (shouldBypassProxy(url)) {
-    return url;
+  if (shouldBypassProxy(unwrappedUrl)) {
+    return unwrappedUrl;
   }
 
   // Don't proxy localhost URLs (these are local development URLs)
@@ -32,16 +35,16 @@ export function getProxiedMediaUrl(url: string, referer?: string): string {
 
   // Resolve relative URLs using the referer
   // Relative URLs need to be converted to absolute URLs before proxying
-  let urlToProxy = url;
-  if (referer && !url.startsWith('http://') && !url.startsWith('https://')) {
+  let urlToProxy = unwrappedUrl;
+  if (referer && !unwrappedUrl.startsWith('http://') && !unwrappedUrl.startsWith('https://')) {
     // This is a relative URL, resolve it against the referer
     try {
       const baseUrl = new URL(referer);
-      urlToProxy = new URL(url, baseUrl).href;
+      urlToProxy = new URL(unwrappedUrl, baseUrl).href;
     } catch (e) {
       // If URL resolution fails, use the original URL
-      console.warn('Failed to resolve relative URL:', url, 'against referer:', referer, e);
-      urlToProxy = url;
+      console.warn('Failed to resolve relative URL:', unwrappedUrl, 'against referer:', referer, e);
+      urlToProxy = unwrappedUrl;
     }
   }
 
@@ -264,6 +267,29 @@ function decodeHTMLEntities(text: string): string {
   const textarea = document.createElement('textarea');
   textarea.innerHTML = text;
   return textarea.value;
+}
+
+function unwrapJintiankanshaUrl(url: string): string {
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname.toLowerCase() !== 'img2.jintiankansha.me') {
+      return url;
+    }
+    const rawSrc = parsed.searchParams.get('src');
+    if (!rawSrc) {
+      return url;
+    }
+    const decoded = decodeURIComponent(rawSrc);
+    if (decoded.startsWith('http://') || decoded.startsWith('https://')) {
+      return decoded;
+    }
+    if (decoded.startsWith('/api/media/proxy')) {
+      return decoded;
+    }
+    return url;
+  } catch {
+    return url;
+  }
 }
 
 // unwrapJintiankanshaInHtml replaces img2.jintiankansha.me wrapper URLs in HTML.
