@@ -8,9 +8,88 @@ import (
 	"errors"
 	"io"
 	"log"
+	"net/url"
 	"regexp"
 	"strings"
 )
+
+// RSSHubDomainPatterns 定义 RSSHub 域名的匹配模式
+var RSSHubDomainPatterns = []string{
+	"rsshub.app",
+	"rsshub.cn",
+	"rsshub.dev",
+	"rsshub.net",
+}
+
+// IsRSSHubURL 检查 URL 是否是 RSSHub 地址
+func IsRSSHubURL(feedURL string) bool {
+	parsed, err := url.Parse(feedURL)
+	if err != nil {
+		return false
+	}
+	host := strings.ToLower(parsed.Host)
+	for _, pattern := range RSSHubDomainPatterns {
+		if strings.Contains(host, pattern) {
+			return true
+		}
+	}
+	return false
+}
+
+// ConvertToRSSHubProtocol 将 RSSHub URL 转换为 rsshub:// 协议格式
+// 例如: https://rsshub.app/twitter/user/DIYgod -> rsshub://twitter/user/DIYgod
+func ConvertToRSSHubProtocol(feedURL string) string {
+	if !IsRSSHubURL(feedURL) {
+		return feedURL
+	}
+
+	parsed, err := url.Parse(feedURL)
+	if err != nil {
+		return feedURL
+	}
+
+	// 提取路径部分 (去掉开头的 /)
+	path := strings.TrimPrefix(parsed.Path, "/")
+	if path == "" {
+		return feedURL
+	}
+
+	// 转换为 rsshub:// 格式
+	return "rsshub://" + path
+}
+
+// ConvertFromRSSHubProtocol 将 rsshub:// 协议格式转换为完整 URL
+// 例如: rsshub://twitter/user/DIYgod -> https://rsshub.app/twitter/user/DIYgod
+func ConvertFromRSSHubProtocol(feedURL string, rsshubDomain string) string {
+	if !strings.HasPrefix(feedURL, "rsshub://") {
+		return feedURL
+	}
+
+	// 使用默认域名或指定的域名
+	if rsshubDomain == "" {
+		rsshubDomain = "https://rsshub.app"
+	}
+
+	// 去掉 rsshub:// 前缀
+	path := strings.TrimPrefix(feedURL, "rsshub://")
+
+	// 确保域名以 https:// 开头（处理用户配置可能包含或不包含协议的情况）
+	if !strings.HasPrefix(rsshubDomain, "http://") && !strings.HasPrefix(rsshubDomain, "https://") {
+		rsshubDomain = "https://" + rsshubDomain
+	}
+
+	// 去掉域名末尾的 /（如果有）
+	rsshubDomain = strings.TrimSuffix(rsshubDomain, "/")
+
+	// 构建完整 URL
+	return rsshubDomain + "/" + path
+}
+
+// GenerateOptions 定义 OPML 生成选项
+type GenerateOptions struct {
+	UseRSSHubProtocol bool   // 是否使用 rsshub:// 协议格式
+	RSSHubEndpoint    string // 用户配置的 RSSHub 端点（用于还原完整 URL）
+}
 
 type OPML struct {
 	XMLName xml.Name `xml:"opml"`
@@ -265,6 +344,75 @@ func Generate(feeds []models.Feed) ([]byte, error) {
 			Title:  f.Title,
 			Type:   f.Type,
 			XMLURL: f.URL,
+			// XPath support
+			XPathItem:           f.XPathItem,
+			XPathItemTitle:      f.XPathItemTitle,
+			XPathItemContent:    f.XPathItemContent,
+			XPathItemUri:        f.XPathItemUri,
+			XPathItemAuthor:     f.XPathItemAuthor,
+			XPathItemTimestamp:  f.XPathItemTimestamp,
+			XPathItemTimeFormat: f.XPathItemTimeFormat,
+			XPathItemThumbnail:  f.XPathItemThumbnail,
+			XPathItemCategories: f.XPathItemCategories,
+			XPathItemUid:        f.XPathItemUid,
+		})
+	}
+
+	return xml.MarshalIndent(doc, "", "  ")
+}
+
+// GenerateWithOptions generates OPML with options for RSSHub URL format
+func GenerateWithOptions(feeds []models.Feed, opts GenerateOptions) ([]byte, error) {
+	doc := OPML{
+		Version: "1.0",
+		Head: Head{
+			Title: "MrRSS Subscriptions",
+		},
+	}
+
+	for _, f := range feeds {
+		currentOutlines := &doc.Body.Outlines
+
+		if f.Category != "" {
+			parts := strings.Split(f.Category, "/")
+			for _, part := range parts {
+				var found *Outline
+				for _, o := range *currentOutlines {
+					if o.XMLURL == "" && o.Text == part {
+						found = o
+						break
+					}
+				}
+				if found == nil {
+					found = &Outline{
+						Text:  part,
+						Title: part,
+					}
+					*currentOutlines = append(*currentOutlines, found)
+				}
+				currentOutlines = &found.Outlines
+			}
+		}
+
+		// 根据选项决定是否转换 RSSHub URL
+		feedURL := f.URL
+		if opts.UseRSSHubProtocol {
+			// 开关开启：将 RSSHub 完整 URL 转换为 rsshub:// 格式
+			if IsRSSHubURL(f.URL) {
+				feedURL = ConvertToRSSHubProtocol(f.URL)
+			}
+		} else {
+			// 开关关闭：将 rsshub:// 格式转换回完整 URL（使用用户配置的端点）
+			if strings.HasPrefix(f.URL, "rsshub://") {
+				feedURL = ConvertFromRSSHubProtocol(f.URL, opts.RSSHubEndpoint)
+			}
+		}
+
+		*currentOutlines = append(*currentOutlines, &Outline{
+			Text:   f.Title,
+			Title:  f.Title,
+			Type:   f.Type,
+			XMLURL: feedURL,
 			// XPath support
 			XPathItem:           f.XPathItem,
 			XPathItemTitle:      f.XPathItemTitle,

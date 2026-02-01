@@ -15,7 +15,7 @@ const props = defineProps<Props>();
 
 const emit = defineEmits<{
   'import-opml': [];
-  'export-opml': [];
+  'export-opml': [useRSSHubProtocol: boolean];
   'cleanup-database': [];
   'add-feed': [];
   'edit-feed': [feed: Feed];
@@ -28,7 +28,7 @@ const emit = defineEmits<{
   'discover-all': [];
   'update:settings': [settings: SettingsData];
   'select-feed': [feedId: number];
-}>();
+}>()
 
 // Create a computed ref that returns the settings object
 // This ensures reactivity while allowing modifications
@@ -42,8 +42,8 @@ function handleImportOPML() {
   emit('import-opml');
 }
 
-function handleExportOPML() {
-  emit('export-opml');
+function handleExportOPML(useRSSHubProtocol: boolean) {
+  emit('export-opml', useRSSHubProtocol);
 }
 
 function handleCleanupDatabase() {

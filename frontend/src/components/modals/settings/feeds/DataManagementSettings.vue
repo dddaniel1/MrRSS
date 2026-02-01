@@ -1,14 +1,17 @@
 <script setup lang="ts">
+import { ref } from 'vue';
 import { useI18n } from 'vue-i18n';
-import { PhHardDrives, PhUpload, PhDownload, PhBroom } from '@phosphor-icons/vue';
+import { PhHardDrives, PhUpload, PhDownload, PhBroom, PhToggleLeft, PhToggleRight } from '@phosphor-icons/vue';
 import { ButtonControl } from '@/components/settings';
 import { SettingGroup } from '@/components/settings';
 
 const { t } = useI18n();
 
+const useRSSHubProtocol = ref(false);
+
 const emit = defineEmits<{
   'import-opml': [];
-  'export-opml': [];
+  'export-opml': [useRSSHubProtocol: boolean];
   'cleanup-database': [];
 }>();
 
@@ -17,11 +20,15 @@ function handleImportOPML() {
 }
 
 function handleExportOPML() {
-  emit('export-opml');
+  emit('export-opml', useRSSHubProtocol.value);
 }
 
 function handleCleanupDatabase() {
   emit('cleanup-database');
+}
+
+function toggleRSSHubProtocol() {
+  useRSSHubProtocol.value = !useRSSHubProtocol.value;
 }
 </script>
 
@@ -43,6 +50,25 @@ function handleCleanupDatabase() {
         @click="handleExportOPML"
       />
     </div>
+
+    <!-- RSSHub Protocol Toggle -->
+    <div
+      class="flex items-center justify-between p-3 rounded-lg border border-border cursor-pointer hover:bg-bg-secondary transition-colors"
+      @click="toggleRSSHubProtocol"
+    >
+      <div class="flex items-center gap-3">
+        <component
+          :is="useRSSHubProtocol ? PhToggleRight : PhToggleLeft"
+          class="w-6 h-6"
+          :class="useRSSHubProtocol ? 'text-accent' : 'text-text-secondary'"
+        />
+        <div>
+          <div class="text-sm font-medium text-text-primary">{{ t('modal.opml.rsshubProtocol') }}</div>
+          <div class="text-xs text-text-secondary">{{ t('modal.opml.rsshubProtocolDesc') }}</div>
+        </div>
+      </div>
+    </div>
+
     <ButtonControl
       :label="t('setting.database.cleanDatabase')"
       :icon="PhBroom"

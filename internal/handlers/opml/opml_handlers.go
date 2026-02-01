@@ -119,10 +119,11 @@ func HandleOPMLImport(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 
 // HandleOPMLExport handles OPML file export.
 // @Summary      Export subscriptions to OPML
-// @Description  Export all local RSS feed subscriptions to an OPML file (excludes FreshRSS feeds)
+// @Description  Export all local RSS feed subscriptions to an OPML file (excludes FreshRSS feeds). Supports RSSHub protocol format.
 // @Tags         opml
 // @Accept       json
 // @Produce      text/xml
+// @Param        rsshub_protocol  query  bool  false  "Use rsshub:// protocol format for RSSHub feeds"
 // @Success      200  {string}  string  "OPML file content"
 // @Failure      500  {object}  map[string]string  "Internal server error"
 // @Router       /opml/export [get]
@@ -141,10 +142,24 @@ func HandleOPMLExport(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	log.Printf("[OPML Export] Exporting %d local feeds (excluded %d FreshRSS feeds)",
-		len(localFeeds), len(feeds)-len(localFeeds))
+	// Check if RSSHub protocol format is requested
+	useRSSHubProtocol := r.URL.Query().Get("rsshub_protocol") == "true"
 
-	data, err := opml.Generate(localFeeds)
+	// 获取用户配置的 RSSHub 端点（用于还原完整 URL）
+	rsshubEndpoint, _ := h.DB.GetSetting("rsshub_endpoint")
+	if rsshubEndpoint == "" {
+		rsshubEndpoint = "https://rsshub.app"
+	}
+
+	log.Printf("[OPML Export] Exporting %d local feeds (excluded %d FreshRSS feeds), RSSHub protocol: %v, endpoint: %s",
+		len(localFeeds), len(feeds)-len(localFeeds), useRSSHubProtocol, rsshubEndpoint)
+
+	var data []byte
+	data, err = opml.GenerateWithOptions(localFeeds, opml.GenerateOptions{
+		UseRSSHubProtocol: useRSSHubProtocol,
+		RSSHubEndpoint:    rsshubEndpoint,
+	})
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -310,10 +325,11 @@ func HandleOPMLImportDialog(h *core.Handler, w http.ResponseWriter, r *http.Requ
 
 // HandleOPMLExportDialog opens a save dialog to export OPML file.
 // @Summary      Export dialog (desktop mode)
-// @Description  Open a save dialog to export subscriptions to OPML or JSON file (desktop mode only)
+// @Description  Open a save dialog to export subscriptions to OPML or JSON file (desktop mode only). Supports RSSHub protocol format.
 // @Tags         opml
 // @Accept       json
 // @Produce      json
+// @Param        rsshub_protocol  body  bool  false  "Use rsshub:// protocol format for RSSHub feeds"
 // @Success      200  {object}  map[string]interface{}  "Export success (status, filePath)"
 // @Success      501  {object}  map[string]string  "Not implemented in server mode"
 // @Failure      500  {object}  map[string]string  "Internal server error"
@@ -327,6 +343,21 @@ func HandleOPMLExportDialog(h *core.Handler, w http.ResponseWriter, r *http.Requ
 			"error": "File dialog not available. Use the direct export endpoint instead.",
 		})
 		return
+	}
+
+	// Parse request body for options
+	var exportOptions struct {
+		UseRSSHubProtocol bool `json:"rsshub_protocol"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&exportOptions); err != nil {
+		// If body is empty or invalid, continue with default options
+		log.Printf("[OPML Export Dialog] No export options provided or invalid JSON: %v", err)
+	}
+
+	// 获取用户配置的 RSSHub 端点（用于还原完整 URL）
+	rsshubEndpoint, _ := h.DB.GetSetting("rsshub_endpoint")
+	if rsshubEndpoint == "" {
+		rsshubEndpoint = "https://rsshub.app"
 	}
 
 	// Get feeds data
@@ -348,8 +379,8 @@ func HandleOPMLExportDialog(h *core.Handler, w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	log.Printf("[OPML Export Dialog] Exporting %d local feeds (excluded %d FreshRSS feeds)",
-		len(localFeeds), len(feeds)-len(localFeeds))
+	log.Printf("[OPML Export Dialog] Exporting %d local feeds (excluded %d FreshRSS feeds), RSSHub protocol: %v, endpoint: %s",
+		len(localFeeds), len(feeds)-len(localFeeds), exportOptions.UseRSSHubProtocol, rsshubEndpoint)
 
 	// Type assert to *application.App to access Dialog
 	app, ok := h.App.(*application.App)
@@ -415,8 +446,11 @@ func HandleOPMLExportDialog(h *core.Handler, w http.ResponseWriter, r *http.Requ
 		log.Printf("HandleOPMLExportDialog: Generating JSON format")
 		data, err = jsonimport.Generate(localFeeds)
 	} else {
-		log.Printf("HandleOPMLExportDialog: Generating OPML format (extension: %s)", ext)
-		data, err = opml.Generate(localFeeds)
+		log.Printf("HandleOPMLExportDialog: Generating OPML format (extension: %s, rsshub_protocol: %v, endpoint: %s)", ext, exportOptions.UseRSSHubProtocol, rsshubEndpoint)
+		data, err = opml.GenerateWithOptions(localFeeds, opml.GenerateOptions{
+			UseRSSHubProtocol: exportOptions.UseRSSHubProtocol,
+			RSSHubEndpoint:    rsshubEndpoint,
+		})
 	}
 
 	if err != nil {

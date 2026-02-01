@@ -450,6 +450,8 @@ const en: TranslationMessages = {
       export: 'Export Feeds',
       exportSuccess: 'OPML exported successfully.',
       import: 'Import Feeds',
+      rsshubProtocol: 'RSSHub Protocol Format',
+      rsshubProtocolDesc: 'Use rsshub:// format instead of full URLs when exporting',
     },
     update: {
       downloadUpdate: 'Download Update',

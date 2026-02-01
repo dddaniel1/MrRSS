@@ -51,11 +51,15 @@ export function useFeedManagement() {
   /**
    * Export OPML file using dialog
    */
-  async function handleExportOPML() {
+  async function handleExportOPML(useRSSHubProtocol: boolean = false) {
     try {
-      console.log('Starting OPML export dialog...');
+      console.log('Starting OPML export dialog...', { useRSSHubProtocol });
       const response = await fetch('/api/opml/export-dialog', {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rsshub_protocol: useRSSHubProtocol,
+        }),
       });
 
       if (!response.ok) {

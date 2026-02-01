@@ -63,6 +63,8 @@ const {
   handleBatchUpdateVideoMode: updateVideoMode,
 } = useFeedManagement();
 
+const useRSSHubProtocol = ref(false);
+
 const emit = defineEmits<{
   close: [];
 }>();
@@ -88,6 +90,11 @@ function handleDiscoverAll() {
 
 function handleBatchUpdateVideoMode(payload: { ids: number[]; enabled: boolean }) {
   updateVideoMode(payload.ids, payload.enabled);
+}
+
+// Wrapper for export to pass RSSHub protocol option
+function handleExportOPMLWithOption(useRSSHubProtocol: boolean) {
+  handleExportOPML(useRSSHubProtocol);
 }
 
 </script>
@@ -216,7 +223,7 @@ function handleBatchUpdateVideoMode(payload: { ids: number[]; enabled: boolean }
             v-if="activeTab === 'feeds'"
             :settings="settings"
             @import-opml="handleImportOPML"
-            @export-opml="handleExportOPML"
+            @export-opml="handleExportOPMLWithOption"
             @cleanup-database="handleCleanupDatabase"
             @add-feed="handleAddFeed"
             @edit-feed="handleEditFeed"

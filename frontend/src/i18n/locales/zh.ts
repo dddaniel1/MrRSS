@@ -446,6 +446,8 @@ const zh: TranslationMessages = {
       export: '导出订阅源',
       exportSuccess: 'OPML 导出成功。',
       import: '导入订阅源',
+      rsshubProtocol: 'RSSHub 协议格式',
+      rsshubProtocolDesc: '导出时使用 rsshub:// 格式而非完整 URL',
     },
     update: {
       downloadUpdate: '下载更新',
