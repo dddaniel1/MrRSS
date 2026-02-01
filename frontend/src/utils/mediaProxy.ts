@@ -255,7 +255,18 @@ function proxyImgAttribute(html: string, attrName: string, referer?: string): st
       'i'
     );
 
-    return match.replace(attrRegex, newAttr);
+    let result = match.replace(attrRegex, newAttr);
+
+    // CRITICAL FIX: Add referrerpolicy="no-referrer" to prevent browser from sending
+    // Referer headers that might cause the proxy request to fail.
+    // This fixes the issue where images fail to load in article content but work in ImageViewer.
+    if (!result.toLowerCase().includes('referrerpolicy')) {
+      // Append referrerpolicy to the end of the matched string (which is usually the src attribute)
+      // We add a space to ensure separation from following attributes
+      result = result + ' referrerpolicy="no-referrer"';
+    }
+
+    return result;
   });
 }
 
