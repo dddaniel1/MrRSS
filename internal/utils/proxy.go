@@ -32,14 +32,28 @@ func BuildProxyURL(proxyType, proxyHost, proxyPort, username, password string) s
 func CreateHTTPClient(proxyURL string, timeout time.Duration) (*http.Client, error) {
 	transport := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			MinVersion: tls.VersionTLS12,
+			MinVersion: tls.VersionTLS10,
+			CipherSuites: []uint16{
+				tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+				tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+				tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+				tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+				tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+				tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+				tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+			},
 		},
 		MaxIdleConns:        50, // Reduced from 100 to prevent connection exhaustion
 		MaxIdleConnsPerHost: 5,  // Reduced from 10 to limit connections per host
 		IdleConnTimeout:     90 * time.Second,
-		// Disable HTTP/2 for RSS feeds - it can cause performance issues
-		// HTTP/1.1 is more reliable and faster for simple RSS feed fetching
-		ForceAttemptHTTP2: false,
+		// Enable HTTP/2 for RSS feeds - it helps bypass anti-bot protection (e.g. xlrocket.blog)
+		// and matches browser fingerprint better when used with modern User-Agents
+		ForceAttemptHTTP2: true,
 		// Write buffer size
 		WriteBufferSize: 32 * 1024, // 32KB
 		// Read buffer size
