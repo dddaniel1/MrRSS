@@ -248,6 +248,24 @@ export function useSidebar() {
       }
     } else if (action === 'edit') {
       window.dispatchEvent(new CustomEvent('show-edit-feed', { detail: feed }));
+    } else if (action === 'cleanupArticles') {
+      const confirmed = await window.showConfirm({
+        title: t('modal.feed.cleanupArticlesTitle'),
+        message: t('modal.feed.cleanupArticlesMessage', { name: feed.title }),
+        confirmText: t('common.action.confirm'),
+        cancelText: t('common.action.cancel'),
+        isDanger: true,
+      });
+      if (confirmed) {
+        const res = await fetch(`/api/articles/cleanup-feed?feed_id=${feed.id}`, { method: 'POST' });
+        if (res.ok) {
+          const result = await res.json();
+          window.showToast(t('modal.feed.articlesCleanedSuccess', { count: result.deleted }), 'success');
+          store.fetchUnreadCounts();
+        } else {
+          window.showToast(t('modal.feed.cleanupArticlesFailed'), 'error');
+        }
+      }
     } else if (action === 'openWebsite') {
       // Handle RSSHub URLs - need to transform rsshub:// to full URL
       let urlToOpen = feed.website_url || feed.url;
@@ -341,6 +359,13 @@ export function useSidebar() {
     });
     items.push({ separator: true });
     items.push({ label: t('common.action.openWebsite'), action: 'openWebsite', icon: 'PhGlobe' });
+
+    // Add cleanup articles option for all feeds
+    items.push({
+      label: t('article.action.cleanupArticles'),
+      action: 'cleanupArticles',
+      icon: 'PhBroom',
+    });
 
     // Only add discover for non-FreshRSS feeds
     if (!feed.is_freshrss_source) {

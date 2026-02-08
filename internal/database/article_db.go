@@ -834,3 +834,33 @@ func (db *DB) GetArticleIDByUniqueID(title string, feedID int64, publishedAt tim
 	}
 	return id, nil
 }
+
+// CleanupArticlesByFeed deletes all articles for a specific feed.
+// Returns the number of articles deleted.
+func (db *DB) CleanupArticlesByFeed(feedID int64) (int64, error) {
+	db.WaitForReady()
+
+	// First delete article contents for this feed's articles
+	result, err := db.Exec(`
+		DELETE FROM article_contents
+		WHERE article_id IN (
+			SELECT id FROM articles WHERE feed_id = ?
+		)
+	`, feedID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete article contents for feed %d: %w", feedID, err)
+	}
+
+	contentCount, _ := result.RowsAffected()
+
+	// Then delete articles for this feed
+	result, err = db.Exec("DELETE FROM articles WHERE feed_id = ?", feedID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete articles for feed %d: %w", feedID, err)
+	}
+
+	articleCount, _ := result.RowsAffected()
+
+	log.Printf("Cleaned up %d articles and %d article contents for feed %d", articleCount, contentCount, feedID)
+	return articleCount, nil
+}

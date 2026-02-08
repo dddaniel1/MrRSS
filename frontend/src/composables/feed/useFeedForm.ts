@@ -64,6 +64,9 @@ export function useFeedForm(feed?: Feed) {
   const refreshMode = ref<RefreshMode>('global');
   const refreshInterval = ref(30);
 
+  // RSSHub mode toggle
+  const isRSSHubMode = ref(false);
+
   const isSubmitting = ref(false);
   const showAdvancedSettings = ref(false);
 
@@ -252,6 +255,10 @@ export function useFeedForm(feed?: Feed) {
       emailUsername.value = feed.email_username || '';
       emailPassword.value = feed.email_password || '';
       emailFolder.value = feed.email_folder || 'INBOX';
+    } else if (feed.url.startsWith('rsshub://')) {
+      // RSSHub feed
+      feedType.value = 'url';
+      isRSSHubMode.value = true;
     } else {
       feedType.value = 'url';
     }
@@ -336,6 +343,7 @@ export function useFeedForm(feed?: Feed) {
     proxyPassword.value = '';
     refreshMode.value = 'global';
     refreshInterval.value = 30;
+    isRSSHubMode.value = false;
   }
 
   async function openScriptsFolder() {
@@ -403,6 +411,7 @@ export function useFeedForm(feed?: Feed) {
     proxyPassword,
     refreshMode,
     refreshInterval,
+    isRSSHubMode,
     isSubmitting,
     showAdvancedSettings,
     availableScripts,

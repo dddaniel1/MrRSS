@@ -137,15 +137,9 @@ const showChatButton = computed(() => {
 
 // Computed to check if full-text fetching should be shown
 const showFullTextButton = computed(() => {
-  // For XPath feeds without content, show button even if articleContent is empty
-  const feed = store.feeds.find((f) => f.id === props.article.feed_id);
-  const isXPathFeedWithoutContent =
-    feed && (feed.type === 'HTML+XPath' || feed.type === 'XML+XPath') && !props.articleContent;
-
   return (
     appSettings.value.full_text_fetch_enabled &&
     !props.isLoadingContent &&
-    (props.articleContent || isXPathFeedWithoutContent) && // Allow empty content for XPath feeds
     props.article?.url &&
     props.showContent &&
     !fullArticleContent.value // Don't show if we already have full content

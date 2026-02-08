@@ -321,6 +321,46 @@ func HandleGetArticleContentCacheInfo(h *core.Handler, w http.ResponseWriter, r 
 	})
 }
 
+// HandleCleanupArticlesByFeed triggers cleanup of articles for a specific feed.
+// @Summary      Cleanup articles for a feed
+// @Description  Delete all articles and article contents for a specific feed
+// @Tags         articles
+// @Accept       json
+// @Produce      json
+// @Param        feed_id   query     int64   true  "Feed ID"
+// @Success      200  {object}  map[string]interface{}  "Cleanup statistics (deleted, feed_id)"
+// @Failure      400  {object}  map[string]string  "Bad request (invalid feed ID)"
+// @Failure      500  {object}  map[string]string  "Internal server error"
+// @Router       /articles/cleanup-feed [post]
+func HandleCleanupArticlesByFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	feedIDStr := r.URL.Query().Get("feed_id")
+	feedID, err := strconv.ParseInt(feedIDStr, 10, 64)
+	if err != nil || feedID <= 0 {
+		http.Error(w, "Invalid feed ID", http.StatusBadRequest)
+		return
+	}
+
+	// Cleanup articles for this feed
+	deletedCount, err := h.DB.CleanupArticlesByFeed(feedID)
+	if err != nil {
+		log.Printf("Error cleaning up articles for feed %d: %v", feedID, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	log.Printf("Manual cleanup for feed %d: cleared %d articles", feedID, deletedCount)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"deleted": deletedCount,
+		"feed_id": feedID,
+	})
+}
+
 // HandleMarkRelativeToArticle marks articles as read relative to a reference article's published time.
 // @Summary      Mark articles relative to reference article
 // @Description  Marks articles as read based on their published time relative to a reference article (above = newer, below = older)

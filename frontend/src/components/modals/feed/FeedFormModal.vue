@@ -23,9 +23,26 @@ const props = defineProps<Props>();
 const { t } = useI18n();
 const store = useAppStore();
 
-// Check if RSSHub is enabled
-const isRSSHubEnabled = computed(() => {
-  return store.settings?.rsshub_enabled === 'true';
+// Get current feed type label
+const currentFeedTypeLabel = computed(() => {
+  if (isRSSHubMode.value) {
+    return 'RSSHub';
+  }
+  switch (feedType.value) {
+    case 'script':
+      return t('setting.customization.script');
+    case 'xpath':
+      return 'XPath';
+    case 'email':
+      return t('modal.feed.email');
+    default:
+      return 'RSS';
+  }
+});
+
+// Check if current feed is RSSHub type (for display badge)
+const isCurrentFeedRSSHub = computed(() => {
+  return isRSSHubMode.value || url.value.startsWith('rsshub://');
 });
 
 // Use the shared feed form composable
@@ -62,6 +79,7 @@ const {
   refreshMode,
   refreshInterval,
   autoExpandContent,
+  isRSSHubMode,
   isSubmitting,
   showAdvancedSettings,
   availableScripts,
@@ -302,63 +320,89 @@ async function submit() {
       </div>
       <div class="flex-1 overflow-y-auto p-4 sm:p-6 scroll-smooth">
         <div class="mb-3 sm:mb-4">
-          <label
-            class="block mb-1 sm:mb-1.5 font-semibold text-xs sm:text-sm text-text-secondary"
-            >{{ t('common.form.title') }}</label
-          >
+          <div class="flex items-center justify-between mb-1 sm:mb-1.5">
+            <label class="font-semibold text-xs sm:text-sm text-text-secondary">{{ t('common.form.title') }}</label>
+            <!-- Feed Type Badge -->
+            <span
+                @click="feedType === 'url' && insertRSSHubPrefix()"
+                class="px-2 py-0.5 text-[10px] sm:text-xs font-medium rounded-full border inline-flex items-center gap-1"
+                :class="isCurrentFeedRSSHub ? 'bg-orange-100 text-orange-700 border-orange-300 dark:bg-orange-900/30 dark:text-orange-400 dark:border-orange-700' : 'bg-bg-tertiary text-text-secondary border-border'"
+            >
+              <img
+                  v-if="isCurrentFeedRSSHub"
+                  src="/assets/plugin_icons/rsshub.svg"
+                  class="w-3 h-3"
+                  alt="RSSHub"
+              />
+              {{ currentFeedTypeLabel }}
+            </span>
+          </div>
           <input
-            v-model="title"
-            type="text"
-            :placeholder="mode === 'add' ? t('modal.feed.titlePlaceholder') : ''"
-            class="input-field"
+              v-model="title"
+              type="text"
+              :placeholder="mode === 'add' ? t('modal.feed.titlePlaceholder') : ''"
+              class="input-field"
           />
+        </div>
+
+        <!-- Feed Type Selection Tabs -->
+        <div v-if="mode === 'add'" class="mb-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            class="px-3 py-1.5 text-xs font-medium rounded-full border transition-colors"
+            :class="feedType === 'url' && !isRSSHubMode ? 'bg-accent text-white border-accent' : 'bg-bg-tertiary text-text-secondary border-border hover:border-accent'"
+            @click="feedType = 'url'; isRSSHubMode = false"
+          >
+            {{ t('modal.feed.rssUrl') }}
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1.5 text-xs font-medium rounded-full border transition-colors"
+            :class="feedType === 'script' ? 'bg-accent text-white border-accent' : 'bg-bg-tertiary text-text-secondary border-border hover:border-accent'"
+            @click="feedType = 'script'; isRSSHubMode = false"
+          >
+            {{ t('setting.customization.script') }}
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1.5 text-xs font-medium rounded-full border transition-colors"
+            :class="feedType === 'xpath' ? 'bg-accent text-white border-accent' : 'bg-bg-tertiary text-text-secondary border-border hover:border-accent'"
+            @click="feedType = 'xpath'; isRSSHubMode = false"
+          >
+            XPath
+          </button>
+          <button
+            type="button"
+            class="px-3 py-1.5 text-xs font-medium rounded-full border transition-colors"
+            :class="feedType === 'email' ? 'bg-accent text-white border-accent' : 'bg-bg-tertiary text-text-secondary border-border hover:border-accent'"
+            @click="feedType = 'email'; isRSSHubMode = false"
+          >
+            {{ t('modal.feed.email') }}
+          </button>
         </div>
 
         <!-- Content switching with different modes -->
         <!-- URL Input (default mode) -->
-        <div v-if="feedType === 'url'" key="url-mode" class="mb-3 sm:mb-4">
-          <UrlInput v-model="url" :mode="mode" :is-invalid="mode === 'add' && isUrlInvalid" />
+        <div v-if="feedType === 'url' && !isRSSHubMode" key="url-mode" class="mb-3 sm:mb-4">
+          <UrlInput
+            v-model="url"
+            :mode="mode"
+            :is-invalid="mode === 'add' && isUrlInvalid"
+          />
+        </div>
 
-          <!-- Mode switching links -->
-          <div class="mt-3 text-center">
-            <div class="text-xs text-text-tertiary">
-              {{ mode === 'add' ? t('common.text.orTry') : t('common.action.switchTo') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'script'"
-              >
-                {{ t('setting.customization.script') }}
-              </button>
-              {{ t('common.text.or') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'xpath'"
-              >
-                {{ t('modal.feed.xpath') }}
-              </button>
-              {{ t('common.text.or') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'email'"
-              >
-                {{ t('modal.feed.email') }}
-              </button>
-              <template v-if="isRSSHubEnabled">
-                {{ t('common.text.or') }}
-                <button
-                  type="button"
-                  class="text-xs text-accent hover:underline mx-1 inline-flex items-center gap-1"
-                  @click="insertRSSHubPrefix"
-                >
-                  <img src="/assets/plugin_icons/rsshub.svg" class="w-3 h-3" alt="RSSHub" />
-                  RSSHub
-                </button>
-              </template>
-            </div>
-          </div>
+        <!-- RSSHub URL Input (edit mode only) -->
+        <div v-else-if="feedType === 'url' && isRSSHubMode && mode === 'edit'" key="rsshub-edit-mode" class="mb-3 sm:mb-4">
+          <label class="block mb-1 sm:mb-1.5 font-semibold text-xs sm:text-sm text-text-secondary"
+            >{{ t('modal.feed.rssUrl') }}</label
+          >
+          <input
+            v-model="url"
+            type="text"
+            :placeholder="t('setting.rsshub.urlPlaceholder')"
+            class="input-field"
+          />
+          <p class="mt-1 text-xs text-text-tertiary">{{ t('modal.feed.rsshubEditHint') }}</p>
         </div>
 
         <!-- Script Selection (advanced mode) -->
@@ -383,47 +427,6 @@ async function submit() {
             :scripts-dir="scriptsDir"
             @open-scripts-folder="openScriptsFolder"
           />
-
-          <!-- Switch to other mode links -->
-          <div class="mt-3 text-center">
-            <div class="text-xs text-text-tertiary">
-              {{ mode === 'add' ? t('common.text.orTry') : t('common.action.switchTo') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'url'"
-              >
-                {{ t('modal.feed.rssUrl') }}
-              </button>
-              {{ t('common.text.or') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'xpath'"
-              >
-                {{ t('modal.feed.xpath') }}
-              </button>
-              {{ t('common.text.or') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'email'"
-              >
-                {{ t('modal.feed.email') }}
-              </button>
-              <template v-if="isRSSHubEnabled">
-                {{ t('common.text.or') }}
-                <button
-                  type="button"
-                  class="text-xs text-accent hover:underline mx-1 inline-flex items-center gap-1"
-                  @click="insertRSSHubPrefix"
-                >
-                  <img src="/assets/plugin_icons/rsshub.svg" class="w-3 h-3" alt="RSSHub" />
-                  RSSHub
-                </button>
-              </template>
-            </div>
-          </div>
         </div>
 
         <!-- XPath Configuration (advanced mode) -->
@@ -468,47 +471,6 @@ async function submit() {
             @update:xpath-item-categories="xpathItemCategories = $event"
             @update:xpath-item-uid="xpathItemUid = $event"
           />
-
-          <!-- Switch to other mode links -->
-          <div class="mt-3 text-center">
-            <div class="text-xs text-text-tertiary">
-              {{ mode === 'add' ? t('common.text.orTry') : t('common.action.switchTo') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'url'"
-              >
-                {{ t('modal.feed.rssUrl') }}
-              </button>
-              {{ t('common.text.or') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'script'"
-              >
-                {{ t('setting.customization.script') }}
-              </button>
-              {{ t('common.text.or') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'email'"
-              >
-                {{ t('modal.feed.email') }}
-              </button>
-              <template v-if="isRSSHubEnabled">
-                {{ t('common.text.or') }}
-                <button
-                  type="button"
-                  class="text-xs text-accent hover:underline mx-1 inline-flex items-center gap-1"
-                  @click="insertRSSHubPrefix"
-                >
-                  <img src="/assets/plugin_icons/rsshub.svg" class="w-3 h-3" alt="RSSHub" />
-                  RSSHub
-                </button>
-              </template>
-            </div>
-          </div>
         </div>
 
         <!-- Email Configuration (newsletter mode) -->
@@ -540,47 +502,6 @@ async function submit() {
             @update:password="emailPassword = $event"
             @update:folder="emailFolder = $event"
           />
-
-          <!-- Switch to other mode links -->
-          <div class="mt-3 text-center">
-            <div class="text-xs text-text-tertiary">
-              {{ mode === 'add' ? t('common.text.orTry') : t('common.action.switchTo') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'url'"
-              >
-                {{ t('modal.feed.rssUrl') }}
-              </button>
-              {{ t('common.text.or') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'xpath'"
-              >
-                {{ t('modal.feed.xpath') }}
-              </button>
-              {{ t('common.text.or') }}
-              <button
-                type="button"
-                class="text-xs text-accent hover:underline mx-1"
-                @click="feedType = 'script'"
-              >
-                {{ t('setting.customization.script') }}
-              </button>
-              <template v-if="isRSSHubEnabled">
-                {{ t('common.text.or') }}
-                <button
-                  type="button"
-                  class="text-xs text-accent hover:underline mx-1 inline-flex items-center gap-1"
-                  @click="insertRSSHubPrefix"
-                >
-                  <img src="/assets/plugin_icons/rsshub.svg" class="w-3 h-3" alt="RSSHub" />
-                  RSSHub
-                </button>
-              </template>
-            </div>
-          </div>
         </div>
 
         <CategorySelector
