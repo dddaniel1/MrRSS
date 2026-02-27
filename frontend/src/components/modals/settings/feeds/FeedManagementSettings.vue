@@ -15,6 +15,7 @@ import {
   PhXCircle,
   PhImage,
   PhPlay,
+  PhChatCircle,
   PhMagnifyingGlass,
   PhX,
 } from '@phosphor-icons/vue';
@@ -38,6 +39,7 @@ const emit = defineEmits<{
   'batch-enable-image-mode': [ids: number[]];
   'batch-disable-image-mode': [ids: number[]];
   'batch-update-video-mode': [payload: { ids: number[]; enabled: boolean }];
+  'batch-update-timeline-mode': [payload: { ids: number[]; enabled: boolean }];
   'select-feed': [feedId: number];
 }>();
 
@@ -132,6 +134,14 @@ const isVideoModeSelected = computed(() => {
   if (selected.length === 0) return false;
   return selected.every((feed) => feed.is_video_mode);
 });
+const isTimelineModeSelected = computed(() => {
+  if (!store.feeds || selectedFeeds.value.length === 0) return false;
+  const selected = selectedFeeds.value
+    .map((id) => store.feeds.find((feed) => feed.id === id))
+    .filter((feed): feed is Feed => !!feed);
+  if (selected.length === 0) return false;
+  return selected.every((feed) => feed.is_timeline_mode);
+});
 
 const isAllSelected = computed(() => {
   if (!store.feeds || store.feeds.length === 0) return false;
@@ -221,6 +231,12 @@ function handleBatchUpdateVideoMode(enabled: boolean) {
     emit('batch-disable-image-mode', ids);
   }
   emit('batch-update-video-mode', { ids, enabled });
+  selectedFeeds.value = [];
+}
+
+function handleBatchUpdateTimelineMode(enabled: boolean) {
+  if (selectedFeeds.value.length === 0) return;
+  emit('batch-update-timeline-mode', { ids: [...selectedFeeds.value], enabled });
   selectedFeeds.value = [];
 }
 
@@ -325,6 +341,19 @@ async function handleFeedClick(feed: Feed, event: Event) {
           :checked="isVideoModeSelected"
           :disabled="selectedFeeds.length === 0"
           @change="handleBatchUpdateVideoMode(($event.target as HTMLInputElement).checked)"
+        />
+      </div>
+      <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-border bg-bg-secondary">
+        <PhChatCircle :size="16" class="text-text-secondary" />
+        <span class="text-xs sm:text-sm text-text-primary">
+          {{ t('setting.feed.timelineMode') }}
+        </span>
+        <input
+          type="checkbox"
+          class="toggle"
+          :checked="isTimelineModeSelected"
+          :disabled="selectedFeeds.length === 0"
+          @change="handleBatchUpdateTimelineMode(($event.target as HTMLInputElement).checked)"
         />
       </div>
     </div>
@@ -543,6 +572,12 @@ async function handleFeedClick(feed: Feed, event: Event) {
                 :size="14"
                 class="text-accent shrink-0 inline"
                 :title="t('setting.feed.videoMode')"
+              />
+              <PhChatCircle
+                v-if="feed.is_timeline_mode"
+                :size="14"
+                class="text-accent shrink-0 inline"
+                :title="t('setting.feed.timelineMode')"
               />
               <PhEyeSlash
                 v-if="feed.hide_from_timeline"

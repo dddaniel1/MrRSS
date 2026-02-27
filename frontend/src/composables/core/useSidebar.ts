@@ -52,6 +52,9 @@ export function useSidebar() {
       if (currentFilterType === 'videoGallery' && !feed.is_video_mode) {
         return;
       }
+      if (currentFilterType === 'timeline' && !feed.is_timeline_mode) {
+        return;
+      }
 
       const matchesSearch =
         query === '' ||
@@ -120,6 +123,9 @@ export function useSidebar() {
       if (store.currentFilter === 'videoGallery' && !feed.is_video_mode) {
         return;
       }
+      if (store.currentFilter === 'timeline' && !feed.is_timeline_mode) {
+        return;
+      }
       if (feed.category) {
         const unreadCount = countsSource[feed.id] || 0;
         if (unreadCount > 0) {
@@ -131,6 +137,9 @@ export function useSidebar() {
     // Calculate uncategorized count
     const uncategorizedFeeds = store.feeds.filter((f) => {
       if (store.currentFilter === 'videoGallery' && !f.is_video_mode) {
+        return false;
+      }
+      if (store.currentFilter === 'timeline' && !f.is_timeline_mode) {
         return false;
       }
       return !f.category;

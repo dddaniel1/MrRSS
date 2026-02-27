@@ -55,6 +55,7 @@ func HandleAddFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		Title            string `json:"title"`
 		ScriptPath       string `json:"script_path"`
 		HideFromTimeline bool   `json:"hide_from_timeline"`
+		IsTimelineMode   bool   `json:"is_timeline_mode"`
 		ProxyURL         string `json:"proxy_url"`
 		ProxyEnabled     bool   `json:"proxy_enabled"`
 		RefreshInterval  int    `json:"refresh_interval"`
@@ -140,7 +141,7 @@ func HandleAddFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "feed created but failed to update settings: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	if err := h.DB.UpdateFeed(feed.ID, feed.Title, feed.URL, feed.Category, feed.ScriptPath, req.HideFromTimeline, req.ProxyURL, req.ProxyEnabled, req.RefreshInterval, req.IsImageMode, req.IsVideoMode, feed.Type, feed.XPathItem, feed.XPathItemTitle, feed.XPathItemContent, feed.XPathItemUri, feed.XPathItemAuthor, feed.XPathItemTimestamp, feed.XPathItemTimeFormat, feed.XPathItemThumbnail, feed.XPathItemCategories, feed.XPathItemUid, req.ArticleViewMode, req.AutoExpandContent, feed.EmailAddress, feed.EmailIMAPServer, feed.EmailUsername, feed.EmailPassword, feed.EmailFolder, feed.EmailIMAPPort); err != nil {
+	if err := h.DB.UpdateFeed(feed.ID, feed.Title, feed.URL, feed.Category, feed.ScriptPath, req.HideFromTimeline, req.IsTimelineMode, req.ProxyURL, req.ProxyEnabled, req.RefreshInterval, req.IsImageMode, req.IsVideoMode, feed.Type, feed.XPathItem, feed.XPathItemTitle, feed.XPathItemContent, feed.XPathItemUri, feed.XPathItemAuthor, feed.XPathItemTimestamp, feed.XPathItemTimeFormat, feed.XPathItemThumbnail, feed.XPathItemCategories, feed.XPathItemUid, req.ArticleViewMode, req.AutoExpandContent, feed.EmailAddress, feed.EmailIMAPServer, feed.EmailUsername, feed.EmailPassword, feed.EmailFolder, feed.EmailIMAPPort); err != nil {
 		http.Error(w, "feed created but failed to update settings: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -198,6 +199,7 @@ func HandleUpdateFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		Category         string `json:"category"`
 		ScriptPath       string `json:"script_path"`
 		HideFromTimeline bool   `json:"hide_from_timeline"`
+		IsTimelineMode   bool   `json:"is_timeline_mode"`
 		ProxyURL         string `json:"proxy_url"`
 		ProxyEnabled     bool   `json:"proxy_enabled"`
 		RefreshInterval  int    `json:"refresh_interval"`
@@ -281,7 +283,7 @@ func HandleUpdateFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.DB.UpdateFeed(req.ID, req.Title, req.URL, req.Category, req.ScriptPath, req.HideFromTimeline, req.ProxyURL, req.ProxyEnabled, req.RefreshInterval, req.IsImageMode, req.IsVideoMode, req.Type, req.XPathItem, req.XPathItemTitle, req.XPathItemContent, req.XPathItemUri, req.XPathItemAuthor, req.XPathItemTimestamp, req.XPathItemTimeFormat, req.XPathItemThumbnail, req.XPathItemCategories, req.XPathItemUid, req.ArticleViewMode, req.AutoExpandContent, req.EmailAddress, req.EmailIMAPServer, req.EmailUsername, req.EmailPassword, req.EmailFolder, req.EmailIMAPPort); err != nil {
+	if err := h.DB.UpdateFeed(req.ID, req.Title, req.URL, req.Category, req.ScriptPath, req.HideFromTimeline, req.IsTimelineMode, req.ProxyURL, req.ProxyEnabled, req.RefreshInterval, req.IsImageMode, req.IsVideoMode, req.Type, req.XPathItem, req.XPathItemTitle, req.XPathItemContent, req.XPathItemUri, req.XPathItemAuthor, req.XPathItemTimestamp, req.XPathItemTimeFormat, req.XPathItemThumbnail, req.XPathItemCategories, req.XPathItemUid, req.ArticleViewMode, req.AutoExpandContent, req.EmailAddress, req.EmailIMAPServer, req.EmailUsername, req.EmailPassword, req.EmailFolder, req.EmailIMAPPort); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -523,6 +525,50 @@ func HandleUpdateFeedsVideoModeBulk(h *core.Handler, w http.ResponseWriter, r *h
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"updated": len(req.FeedIDs),
+	})
+}
+
+// HandleUpdateFeedsTimelineModeBulk updates the timeline_mode setting for multiple feeds in a single operation.
+// @Summary      Update timeline mode for multiple feeds
+// @Description  Enable or disable timeline mode for multiple feeds at once (single database query)
+// @Tags         feeds
+// @Accept       json
+// @Produce      json
+// @Param        request  body      object  true  "Bulk timeline mode update (feed_ids, is_timeline_mode)"
+// @Success      200  {object}  map[string]interface{}  "Update success (updated count)"
+// @Failure      400  {object}  map[string]string  "Bad request"
+// @Failure      500  {object}  map[string]string  "Internal server error"
+// @Router       /feeds/bulk-update-timeline-mode [post]
+func HandleUpdateFeedsTimelineModeBulk(h *core.Handler, w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		FeedIDs        []int64 `json:"feed_ids"`
+		IsTimelineMode bool    `json:"is_timeline_mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if len(req.FeedIDs) == 0 {
+		http.Error(w, "feed_ids cannot be empty", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.DB.UpdateFeedTimelineModeBulk(req.FeedIDs, req.IsTimelineMode); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -27,11 +27,12 @@ func HandleAddFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		Route       string `json:"route"`
-		Category    string `json:"category"`
-		Title       string `json:"title"`
-		IsImageMode bool   `json:"is_image_mode"`
-		IsVideoMode bool   `json:"is_video_mode"`
+		Route          string `json:"route"`
+		Category       string `json:"category"`
+		Title          string `json:"title"`
+		IsImageMode    bool   `json:"is_image_mode"`
+		IsVideoMode    bool   `json:"is_video_mode"`
+		IsTimelineMode bool   `json:"is_timeline_mode"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -69,6 +70,7 @@ func HandleAddFeed(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		feed.Category,
 		feed.ScriptPath,
 		feed.HideFromTimeline,
+		req.IsTimelineMode,
 		feed.ProxyURL,
 		feed.ProxyEnabled,
 		feed.RefreshInterval,

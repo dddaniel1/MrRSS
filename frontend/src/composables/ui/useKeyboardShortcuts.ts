@@ -24,6 +24,7 @@ export interface KeyboardShortcuts {
   goToUnread: string;
   goToFavorites: string;
   goToReadLater: string;
+  goToTimeline: string;
 }
 
 export interface KeyboardShortcutCallbacks {
@@ -58,6 +59,7 @@ export function useKeyboardShortcuts(callbacks: KeyboardShortcutCallbacks) {
     goToUnread: '2',
     goToFavorites: '3',
     goToReadLater: '4',
+    goToTimeline: '5',
   });
 
   // Helper functions
@@ -406,6 +408,9 @@ export function useKeyboardShortcuts(callbacks: KeyboardShortcutCallbacks) {
         break;
       case 'goToReadLater':
         store.setFilter('readLater');
+        break;
+      case 'goToTimeline':
+        store.setFilter('timeline');
         break;
     }
   }

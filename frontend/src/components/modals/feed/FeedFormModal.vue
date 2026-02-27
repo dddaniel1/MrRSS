@@ -21,7 +21,7 @@ interface Props {
 const props = defineProps<Props>();
 
 const { t } = useI18n();
-const store = useAppStore();
+const wa = useAppStore();
 
 // Get current feed type label
 const currentFeedTypeLabel = computed(() => {
@@ -56,6 +56,7 @@ const {
   showCustomCategory,
   scriptPath,
   hideFromTimeline,
+  isTimelineMode,
   isImageMode,
   isVideoMode,
   xpathType,
@@ -131,6 +132,7 @@ async function submit() {
       category: category.value,
       title: title.value,
       hide_from_timeline: hideFromTimeline.value,
+      is_timeline_mode: isTimelineMode.value,
       is_image_mode: isImageMode.value,
       is_video_mode: isVideoMode.value,
       refresh_interval: getRefreshInterval(),
@@ -215,13 +217,14 @@ async function submit() {
         const rsshubResp = await fetch('/api/rsshub/add', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            route: route,
-            category: category.value,
-            title: title.value,
-            is_image_mode: isImageMode.value,
-            is_video_mode: isVideoMode.value,
-          }),
+            body: JSON.stringify({
+              route: route,
+              category: category.value,
+              title: title.value,
+              is_timeline_mode: isTimelineMode.value,
+              is_image_mode: isImageMode.value,
+              is_video_mode: isVideoMode.value,
+            }),
         });
 
         if (rsshubResp.ok) {
@@ -544,7 +547,7 @@ async function submit() {
           :image-gallery-enabled="imageGalleryEnabled"
           :is-image-mode="isImageMode"
           :is-video-mode="isVideoMode"
-          :hide-from-timeline="hideFromTimeline"
+          :is-timeline-mode="isTimelineMode"
           :article-view-mode="articleViewMode"
           :auto-expand-content="autoExpandContent"
           :proxy-mode="proxyMode"
@@ -557,7 +560,7 @@ async function submit() {
           :refresh-interval="refreshInterval"
           @update:is-image-mode="isImageMode = $event"
           @update:is-video-mode="isVideoMode = $event"
-          @update:hide-from-timeline="hideFromTimeline = $event"
+          @update:is-timeline-mode="isTimelineMode = $event"
           @update:article-view-mode="articleViewMode = $event"
           @update:auto-expand-content="autoExpandContent = $event"
           @update:proxy-mode="proxyMode = $event"

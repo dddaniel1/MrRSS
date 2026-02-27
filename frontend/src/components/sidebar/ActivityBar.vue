@@ -13,6 +13,7 @@ import {
   PhPlay,
   PhYoutubeLogo,
   PhPause,
+  PhChatCircle,
 } from '@phosphor-icons/vue';
 import { ref, onMounted, computed } from 'vue';
 import { useAppStore } from '@/stores/app';
@@ -32,7 +33,7 @@ interface NavItem {
   icon: any;
   label: string;
   activeIcon?: any;
-  filterType: 'all' | 'unread' | 'favorites' | 'readLater' | 'imageGallery' | 'videoGallery';
+  filterType: 'all' | 'unread' | 'favorites' | 'readLater' | 'imageGallery' | 'videoGallery' | 'timeline';
 }
 
 const navItems: NavItem[] = [
@@ -72,6 +73,12 @@ const navItems: NavItem[] = [
     icon: PhYoutubeLogo,
     label: t('sidebar.activity.videoGallery'),
     filterType: 'videoGallery',
+  },
+  {
+    id: 'timeline',
+    icon: PhChatCircle,
+    label: t('sidebar.activity.timeline'),
+    filterType: 'timeline',
   },
 ];
 

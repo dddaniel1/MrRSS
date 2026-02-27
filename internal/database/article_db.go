@@ -109,6 +109,8 @@ func (db *DB) GetArticles(filter string, feedID int64, category string, showHidd
 		if feedID <= 0 && category == "" {
 			whereClauses = append(whereClauses, "COALESCE(f.hide_from_timeline, 0) = 0")
 		}
+	case "timeline":
+		whereClauses = append(whereClauses, "COALESCE(f.is_timeline_mode, 0) = 1")
 	}
 
 	if feedID > 0 {

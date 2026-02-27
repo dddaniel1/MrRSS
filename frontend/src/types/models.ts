@@ -35,6 +35,7 @@ export interface Feed {
   last_error?: string;
   script_path?: string;
   hide_from_timeline?: boolean;
+  is_timeline_mode?: boolean;
   proxy_url?: string;
   proxy_enabled?: boolean;
   refresh_interval?: number;

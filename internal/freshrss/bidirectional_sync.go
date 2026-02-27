@@ -514,6 +514,7 @@ func (s *BidirectionalSyncService) createFeedsFromSubscriptions(ctx context.Cont
 					updateCategory,
 					existingFeed.ScriptPath,
 					existingFeed.HideFromTimeline,
+					existingFeed.IsTimelineMode,
 					existingFeed.ProxyURL,
 					existingFeed.ProxyEnabled,
 					existingFeed.RefreshInterval,

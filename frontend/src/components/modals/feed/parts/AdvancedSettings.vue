@@ -7,7 +7,7 @@ interface Props {
   imageGalleryEnabled: boolean;
   isImageMode: boolean;
   isVideoMode: boolean;
-  hideFromTimeline: boolean;
+  isTimelineMode: boolean;
   articleViewMode: 'global' | 'webpage' | 'rendered' | 'external';
   autoExpandContent: 'global' | 'enabled' | 'disabled';
   proxyMode: ProxyMode;
@@ -25,7 +25,7 @@ const props = defineProps<Props>();
 const emit = defineEmits<{
   'update:isImageMode': [value: boolean];
   'update:isVideoMode': [value: boolean];
-  'update:hideFromTimeline': [value: boolean];
+  'update:isTimelineMode': [value: boolean];
   'update:articleViewMode': [value: 'global' | 'webpage' | 'rendered' | 'external'];
   'update:autoExpandContent': [value: 'global' | 'enabled' | 'disabled'];
   'update:proxyMode': [value: ProxyMode];
@@ -99,22 +99,22 @@ const { t } = useI18n();
       </label>
     </div>
 
-    <!-- Hide from Timeline Toggle -->
+    <!-- Timeline Mode Toggle -->
     <div class="p-3 rounded-lg bg-bg-secondary border border-border">
       <label class="flex items-center justify-between cursor-pointer">
         <div>
           <span class="font-semibold text-xs sm:text-sm text-text-primary">{{
-            t('setting.reading.hideFromTimeline')
+            t('setting.feed.timelineMode')
           }}</span>
           <p class="text-[10px] sm:text-xs text-text-secondary mt-0.5">
-            {{ t('setting.reading.hideFromTimelineDesc') }}
+            {{ t('setting.feed.timelineModeDesc') }}
           </p>
         </div>
         <input
-          :checked="props.hideFromTimeline"
+          :checked="props.isTimelineMode"
           type="checkbox"
           class="toggle"
-          @change="emit('update:hideFromTimeline', ($event.target as HTMLInputElement).checked)"
+          @change="emit('update:isTimelineMode', ($event.target as HTMLInputElement).checked)"
         />
       </label>
     </div>

@@ -61,6 +61,7 @@ const {
   handleBatchEnableImageMode,
   handleBatchDisableImageMode,
   handleBatchUpdateVideoMode: updateVideoMode,
+  handleBatchUpdateTimelineMode: updateTimelineMode,
 } = useFeedManagement();
 
 const useRSSHubProtocol = ref(false);
@@ -90,6 +91,10 @@ function handleDiscoverAll() {
 
 function handleBatchUpdateVideoMode(payload: { ids: number[]; enabled: boolean }) {
   updateVideoMode(payload.ids, payload.enabled);
+}
+
+function handleBatchUpdateTimelineMode(payload: { ids: number[]; enabled: boolean }) {
+  updateTimelineMode(payload.ids, payload.enabled);
 }
 
 // Wrapper for export to pass RSSHub protocol option
@@ -233,6 +238,7 @@ function handleExportOPMLWithOption(useRSSHubProtocol: boolean) {
             @batch-enable-image-mode="handleBatchEnableImageMode"
             @batch-disable-image-mode="handleBatchDisableImageMode"
             @batch-update-video-mode="handleBatchUpdateVideoMode"
+            @batch-update-timeline-mode="handleBatchUpdateTimelineMode"
             @discover-all="handleDiscoverAll"
             @select-feed="emit('close')"
             @update:settings="settings = $event"

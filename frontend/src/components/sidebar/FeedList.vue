@@ -269,9 +269,11 @@ const filteredTree = computed(() => {
 
   const imageModeOnly = store.currentFilter === 'imageGallery';
   const videoModeOnly = store.currentFilter === 'videoGallery';
+  const timelineMode = store.currentFilter === 'timeline';
   const shouldIncludeFeed = (feed: Feed) => {
     if (videoModeOnly) return !!feed.is_video_mode;
     if (imageModeOnly) return !!feed.is_image_mode;
+    if (timelineMode) return !!feed.is_timeline_mode;
     return true;
   };
 

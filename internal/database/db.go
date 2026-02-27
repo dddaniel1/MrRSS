@@ -102,6 +102,10 @@ func (db *DB) Init() error {
 		// Error is ignored - if column exists, the operation fails harmlessly.
 		_, _ = db.Exec(`ALTER TABLE feeds ADD COLUMN hide_from_timeline BOOLEAN DEFAULT 0`)
 
+		// Migration: Add is_timeline_mode column to feeds table for timeline mode
+		// Error is ignored - if column exists, the operation fails harmlessly.
+		_, _ = db.Exec(`ALTER TABLE feeds ADD COLUMN is_timeline_mode BOOLEAN DEFAULT 0`)
+
 		// Migration: Add proxy and refresh interval columns to feeds table
 		// Error is ignored - if column exists, the operation fails harmlessly.
 		_, _ = db.Exec(`ALTER TABLE feeds ADD COLUMN proxy_url TEXT DEFAULT ''`)
@@ -242,6 +246,7 @@ func (db *DB) Init() error {
 					discovery_completed BOOLEAN DEFAULT 0,
 					script_path TEXT DEFAULT '',
 					hide_from_timeline BOOLEAN DEFAULT 0,
+					is_timeline_mode BOOLEAN DEFAULT 0,
 					proxy_url TEXT DEFAULT '',
 					proxy_enabled BOOLEAN DEFAULT 0,
 					refresh_interval INTEGER DEFAULT 0,
@@ -276,7 +281,7 @@ func (db *DB) Init() error {
 				_, err = db.Exec(`
 					INSERT INTO feeds_new (
 						id, title, url, link, description, category, image_url, position, last_updated, last_error,
-						discovery_completed, script_path, hide_from_timeline, proxy_url, proxy_enabled, refresh_interval,
+						discovery_completed, script_path, hide_from_timeline, is_timeline_mode, proxy_url, proxy_enabled, refresh_interval,
 						is_image_mode, is_video_mode, type, xpath_item, xpath_item_title, xpath_item_content, xpath_item_uri,
 						xpath_item_author, xpath_item_timestamp, xpath_item_time_format, xpath_item_thumbnail,
 						xpath_item_categories, xpath_item_uid, article_view_mode, auto_expand_content,
@@ -290,6 +295,7 @@ func (db *DB) Init() error {
 						COALESCE(discovery_completed, 0) as discovery_completed,
 						COALESCE(script_path, '') as script_path,
 						COALESCE(hide_from_timeline, 0) as hide_from_timeline,
+						COALESCE(is_timeline_mode, 0) as is_timeline_mode,
 						COALESCE(proxy_url, '') as proxy_url,
 						COALESCE(proxy_enabled, 0) as proxy_enabled,
 						COALESCE(refresh_interval, 0) as refresh_interval,

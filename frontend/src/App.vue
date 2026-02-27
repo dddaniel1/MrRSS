@@ -6,6 +6,7 @@ import ArticleList from './components/article/ArticleList.vue';
 import ArticleDetail from './components/article/ArticleDetail.vue';
 import ImageGalleryView from './components/article/ImageGalleryView.vue';
 import VideoGalleryView from './components/article/VideoGalleryView.vue';
+import TimelineView from './components/article/TimelineView.vue';
 import AddFeedModal from './components/modals/feed/AddFeedModal.vue';
 import EditFeedModal from './components/modals/feed/EditFeedModal.vue';
 import SettingsModal from './components/modals/SettingsModal.vue';
@@ -38,6 +39,7 @@ const isSidebarOpen = ref(true);
 // Check if we're in image gallery mode
 const isImageGalleryMode = computed(() => store.currentFilter === 'imageGallery');
 const isVideoGalleryMode = computed(() => store.currentFilter === 'videoGallery');
+const isTimelineMode = computed(() => store.currentFilter === 'timeline');
 
 // Use composables
 const { confirmDialog, inputDialog, toasts, removeToast, installGlobalHandlers } =
@@ -282,7 +284,12 @@ function onFeedUpdated(): void {
       <VideoGalleryView :is-sidebar-open="isSidebarOpen" @toggle-sidebar="toggleSidebar" />
     </template>
 
-    <!-- Show ArticleList and ArticleDetail when not in image gallery mode -->
+    <!-- Show TimelineView when in timeline mode -->
+    <template v-else-if="isTimelineMode">
+      <TimelineView :is-sidebar-open="isSidebarOpen" @toggle-sidebar="toggleSidebar" />
+    </template>
+
+    <!-- Show ArticleList and ArticleDetail when not in special view mode -->
     <template v-else>
       <ArticleList :is-sidebar-open="isSidebarOpen" @toggle-sidebar="toggleSidebar" />
 

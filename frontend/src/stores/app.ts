@@ -3,7 +3,7 @@ import { ref, computed, type Ref } from 'vue';
 import type { Article, Feed, UnreadCounts, RefreshProgress } from '@/types/models';
 import { useSettings } from '@/composables/core/useSettings';
 
-export type Filter = 'all' | 'unread' | 'favorites' | 'readLater' | 'imageGallery' | 'videoGallery' | '';
+export type Filter = 'all' | 'unread' | 'favorites' | 'readLater' | 'imageGallery' | 'videoGallery' | 'timeline' | '';
 export type ThemePreference = 'light' | 'dark' | 'auto';
 export type Theme = 'light' | 'dark';
 
@@ -100,6 +100,10 @@ export const useAppStore = defineStore('app', () => {
     tempSelection.value = { feedId: null, category: null };
     // Refresh filter counts to ensure sidebar shows correct feeds
     await fetchFilterCounts();
+    // Special views handle their own data fetching
+    if (filter === 'imageGallery' || filter === 'videoGallery' || filter === 'timeline') {
+      return;
+    }
     // Clear and reset will be handled by fetchArticles
     fetchArticles();
   }

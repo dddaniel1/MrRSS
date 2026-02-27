@@ -22,6 +22,7 @@ export function useFeedForm(feed?: Feed) {
   const showCustomCategory = ref(false);
   const scriptPath = ref('');
   const hideFromTimeline = ref(false);
+  const isTimelineMode = ref(false);
   const isImageMode = ref(false);
   const isVideoMode = ref(false);
 
@@ -214,6 +215,7 @@ export function useFeedForm(feed?: Feed) {
     category.value = feed.category;
     scriptPath.value = feed.script_path || '';
     hideFromTimeline.value = feed.hide_from_timeline || false;
+    isTimelineMode.value = feed.is_timeline_mode || false;
     isImageMode.value = feed.is_image_mode || false;
     isVideoMode.value = feed.is_video_mode || false;
 
@@ -313,6 +315,7 @@ export function useFeedForm(feed?: Feed) {
     category.value = '';
     scriptPath.value = '';
     hideFromTimeline.value = false;
+    isTimelineMode.value = false;
     isImageMode.value = false;
     isVideoMode.value = false;
     xpathType.value = 'HTML+XPath';
@@ -381,6 +384,7 @@ export function useFeedForm(feed?: Feed) {
     showCustomCategory,
     scriptPath,
     hideFromTimeline,
+    isTimelineMode,
     isImageMode,
     isVideoMode,
     xpathType,

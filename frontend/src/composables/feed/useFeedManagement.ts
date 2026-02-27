@@ -294,6 +294,36 @@ export function useFeedManagement() {
     }
   }
 
+  /**
+   * Toggle timeline mode for multiple feeds
+   */
+  async function handleBatchUpdateTimelineMode(selectedIds: number[], isTimelineMode: boolean) {
+    if (selectedIds.length === 0) return;
+
+    try {
+      const response = await fetch('/api/feeds/bulk-update-timeline-mode', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          feed_ids: selectedIds,
+          is_timeline_mode: isTimelineMode,
+        }),
+      });
+
+      if (!response.ok) {
+        window.showToast(t('common.errors.unknownError'), 'error');
+        return;
+      }
+
+      const result = await response.json();
+      store.fetchFeeds();
+      window.showToast(t('modal.feed.feedsUpdatedSuccess', { count: result.updated }), 'success');
+    } catch (error) {
+      console.error('Error updating timeline mode:', error);
+      window.showToast(t('common.errors.unknownError'), 'error');
+    }
+  }
+
 
   /**
    * Move multiple feeds to a new category
@@ -367,5 +397,6 @@ export function useFeedManagement() {
     handleBatchEnableImageMode,
     handleBatchDisableImageMode,
     handleBatchUpdateVideoMode,
+    handleBatchUpdateTimelineMode,
   };
 }
