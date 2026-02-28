@@ -54,26 +54,6 @@ const sortedArticles = computed(() =>
   })
 );
 
-// Get a color for feed avatar based on feed title
-function getFeedColor(feedTitle?: string): string {
-  if (!feedTitle) return '#6b7280';
-  const colors = [
-    '#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6',
-    '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#06b6d4',
-    '#84cc16', '#e11d48', '#0891b2', '#7c3aed', '#059669',
-  ];
-  let hash = 0;
-  for (let i = 0; i < feedTitle.length; i++) {
-    hash = feedTitle.charCodeAt(i) + ((hash << 5) - hash);
-  }
-  return colors[Math.abs(hash) % colors.length];
-}
-
-function getFeedInitial(feedTitle?: string): string {
-  if (!feedTitle) return '?';
-  return feedTitle.charAt(0).toUpperCase();
-}
-
 function getProxyImageUrl(articleId: number, imageUrl: string): string {
   if (!imageUrl) return '';
   const feedUrl = feedUrlCache.value.get(articleId);
@@ -81,6 +61,19 @@ function getProxyImageUrl(articleId: number, imageUrl: string): string {
     ? getProxiedMediaUrl(imageUrl, feedUrl)
     : imageUrl;
   return imageCache.getImageUrl(proxied);
+}
+
+function getFeedInitial(feedTitle?: string): string {
+  if (!feedTitle) return '?';
+  return feedTitle.charAt(0).toUpperCase();
+}
+
+function getFeedIconUrl(article: Article): string {
+  const feed = store.feedMap.get(article.feed_id);
+  const iconUrl = feed?.image_url;
+  if (!iconUrl) return '';
+  if (!mediaCacheEnabled.value) return iconUrl;
+  return getProxiedMediaUrl(iconUrl, feed?.url || article.url);
 }
 
 function getDisplayImages(article: Article): string[] {
@@ -491,11 +484,14 @@ onUnmounted(() => {
           <div class="flex gap-3">
             <!-- Avatar -->
             <div class="shrink-0 pt-0.5">
-              <div
-                class="timeline-avatar"
-                :style="{ backgroundColor: getFeedColor(article.feed_title) }"
-              >
-                {{ getFeedInitial(article.feed_title) }}
+              <div class="timeline-avatar">
+                <img
+                  v-if="getFeedIconUrl(article)"
+                  :src="getFeedIconUrl(article)"
+                  :alt="article.feed_title || 'Feed'"
+                  class="timeline-avatar-icon"
+                />
+                <span v-else class="timeline-avatar-fallback">{{ getFeedInitial(article.feed_title) }}</span>
               </div>
             </div>
 
@@ -670,9 +666,14 @@ onUnmounted(() => {
             <div class="flex items-center gap-1.5 text-sm">
               <div
                 class="timeline-avatar-sm"
-                :style="{ backgroundColor: getFeedColor(selectedArticle.feed_title) }"
               >
-                {{ getFeedInitial(selectedArticle.feed_title) }}
+                <img
+                  v-if="getFeedIconUrl(selectedArticle)"
+                  :src="getFeedIconUrl(selectedArticle)"
+                  :alt="selectedArticle.feed_title || 'Feed'"
+                  class="timeline-avatar-sm-icon"
+                />
+                <span v-else class="timeline-avatar-fallback">{{ getFeedInitial(selectedArticle.feed_title) }}</span>
               </div>
               <span class="font-bold text-text-primary truncate">
                 {{ selectedArticle.feed_title }}
@@ -782,7 +783,15 @@ onUnmounted(() => {
 }
 
 .timeline-avatar {
-  @apply w-10 h-10 rounded-full flex items-center justify-center text-white text-sm font-bold select-none shrink-0;
+  @apply w-10 h-10 rounded-full flex items-center justify-center select-none shrink-0 bg-bg-secondary border border-border;
+}
+
+.timeline-avatar-icon {
+  @apply w-6 h-6 object-cover rounded-full;
+}
+
+.timeline-avatar-fallback {
+  @apply text-text-secondary text-xs font-semibold;
 }
 
 .timeline-actions {
@@ -827,7 +836,11 @@ onUnmounted(() => {
 
 /* Detail view small avatar */
 .timeline-avatar-sm {
-  @apply w-6 h-6 rounded-full flex items-center justify-center text-white text-[10px] font-bold select-none shrink-0;
+  @apply w-6 h-6 rounded-full flex items-center justify-center select-none shrink-0 bg-bg-secondary border border-border;
+}
+
+.timeline-avatar-sm-icon {
+  @apply w-4 h-4 object-cover rounded-full;
 }
 
 /* Detail overlay transition */
