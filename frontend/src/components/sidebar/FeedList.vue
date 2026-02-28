@@ -11,6 +11,15 @@ import {
   PhX,
   PhPencil,
   PhCheck,
+  PhPlay,
+  PhPause,
+  PhLink,
+  PhDownloadSimple,
+  PhSpeakerHigh,
+  PhSpeakerLow,
+  PhSpeakerSlash,
+  PhRewind,
+  PhFastForward,
   PhPushPin,
   PhPushPinSlash,
   PhArrowClockwise,
@@ -19,6 +28,7 @@ import {
   PhLightning,
 } from '@phosphor-icons/vue';
 import type { Feed } from '@/types/models';
+import { useGlobalAudioPlayer } from '@/composables/article/useGlobalAudioPlayer';
 
 const props = defineProps<{
   isExpanded?: boolean;
@@ -35,6 +45,147 @@ const emit = defineEmits<{
 const store = useAppStore();
 const { t } = useI18n();
 const { settings, fetchSettings } = useSettings();
+const {
+  currentSourceUrl,
+  currentArticleTitle,
+  currentArticleId,
+  currentFeedId,
+  isPlaying,
+  currentTime,
+  duration,
+  playbackSpeed,
+  volume,
+  togglePlay,
+  cycleSpeed,
+  setVolume,
+  seekToTime,
+  skipBackward,
+  skipForward,
+  closePlayer,
+} = useGlobalAudioPlayer();
+
+const hasPodcastPlayback = computed(() => Boolean(currentSourceUrl.value));
+const currentPlayingArticle = computed(() => {
+  if (!currentArticleId.value) {
+    return null;
+  }
+  return store.articles.find((article) => article.id === currentArticleId.value) || null;
+});
+const playbackProgress = computed(() => {
+  if (!duration.value || duration.value <= 0) {
+    return 0;
+  }
+  return Math.min(100, Math.max(0, (currentTime.value / duration.value) * 100));
+});
+const volumePercent = computed(() => `${Math.round(volume.value * 100)}%`);
+const isMuted = computed(() => volume.value <= 0.01);
+const isLowVolume = computed(() => volume.value > 0.01 && volume.value <= 0.5);
+
+function formatAudioTime(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    return '00:00';
+  }
+  const total = Math.floor(seconds);
+  const mins = Math.floor(total / 60);
+  const secs = total % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+}
+
+async function handlePodcastPlaybackToggle() {
+  if (!hasPodcastPlayback.value) {
+    return;
+  }
+  await togglePlay();
+}
+
+function handleClosePodcastPlayer() {
+  closePlayer();
+}
+
+async function handleJumpToArticlePage() {
+  const articleId = currentArticleId.value;
+  if (!articleId) {
+    return;
+  }
+
+  const targetFeedId = currentFeedId.value ?? currentPlayingArticle.value?.feed_id ?? null;
+
+  const loadArticleScope = async (feedId: number | null) => {
+    store.currentFilter = 'all';
+    store.currentCategory = null;
+    store.currentFeedId = feedId;
+    store.tempSelection = { feedId, category: null };
+    await store.fetchArticles(false);
+  };
+
+  const tryFindArticleInLoadedPages = async () => {
+    let articleFound = store.articles.some((article) => article.id === articleId);
+
+    for (let i = 0; i < 80 && !articleFound && store.hasMore; i++) {
+      await store.loadMore();
+      articleFound = store.articles.some((article) => article.id === articleId);
+    }
+
+    return articleFound;
+  };
+
+  if (targetFeedId) {
+    await loadArticleScope(targetFeedId);
+    if (await tryFindArticleInLoadedPages()) {
+      store.currentArticleId = articleId;
+      return;
+    }
+  }
+
+  await loadArticleScope(null);
+  if (await tryFindArticleInLoadedPages()) {
+    store.currentArticleId = articleId;
+    return;
+  }
+
+  window.showToast(t('article.content.noArticles'), 'info');
+}
+
+function handleDownloadAudio() {
+  if (!currentSourceUrl.value) {
+    return;
+  }
+
+  const link = document.createElement('a');
+  link.href = currentSourceUrl.value;
+  link.download = '';
+  link.rel = 'noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function handleVolumeAdjust() {
+  const volumeLevels = [0, 0.35, 0.7, 1];
+  const currentIndex = volumeLevels.findIndex((level) => Math.abs(level - volume.value) < 0.01);
+  const safeIndex = currentIndex === -1 ? volumeLevels.length - 1 : currentIndex;
+  const nextLevel = volumeLevels[(safeIndex + 1) % volumeLevels.length];
+  setVolume(nextLevel);
+}
+
+function handleSeek(event: MouseEvent) {
+  if (!duration.value || duration.value <= 0) {
+    return;
+  }
+
+  const target = event.currentTarget as HTMLElement | null;
+  if (!target) {
+    return;
+  }
+
+  const rect = target.getBoundingClientRect();
+  if (rect.width <= 0) {
+    return;
+  }
+
+  const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+  seekToTime(ratio * duration.value);
+}
 
 // Compact mode setting
 const compactMode = computed(() => {
@@ -651,6 +802,105 @@ function handleTogglePin() {
             />
           </div>
         </template>
+      </div>
+
+      <div
+        v-if="hasPodcastPlayback"
+        class="group relative border-t border-border bg-bg-primary px-3 py-2.5"
+      >
+        <div
+          class="invisible absolute left-3 right-3 -top-10 z-10 flex items-center justify-between rounded-lg border border-border bg-bg-secondary/95 px-2 py-1.5 opacity-0 shadow-lg backdrop-blur-sm transition-all duration-150 group-hover:visible group-hover:opacity-100"
+        >
+          <div class="flex items-center gap-1">
+            <button
+              class="rounded p-1 text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+              :title="t('common.close')"
+              @click="handleClosePodcastPlayer"
+            >
+              <PhX :size="14" />
+            </button>
+            <button
+              class="rounded p-1 text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+              :title="t('article.action.viewArticle')"
+              @click="handleJumpToArticlePage"
+            >
+              <PhLink :size="14" />
+            </button>
+            <button
+              class="rounded p-1 text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+              :title="t('common.contextMenu.downloadAudio')"
+              @click="handleDownloadAudio"
+            >
+              <PhDownloadSimple :size="14" />
+            </button>
+          </div>
+
+          <div class="flex items-center gap-1">
+            <button
+              class="rounded px-1.5 py-1 text-[11px] font-medium text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+              :title="t('article.audioPlayer.playbackSpeed')"
+              @click="cycleSpeed"
+            >
+              {{ playbackSpeed }}x
+            </button>
+            <button
+              class="rounded p-1 text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+              :title="`${t('article.audioPlayer.volume')} ${volumePercent}`"
+              @click="handleVolumeAdjust"
+            >
+              <PhSpeakerSlash v-if="isMuted" :size="14" />
+              <PhSpeakerLow v-else-if="isLowVolume" :size="14" />
+              <PhSpeakerHigh v-else :size="14" />
+            </button>
+            <button
+              class="rounded p-1 text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+              :title="t('article.audioPlayer.skipBackward')"
+              @click="skipBackward"
+            >
+              <PhRewind :size="14" />
+            </button>
+            <button
+              class="rounded p-1 text-text-secondary transition-colors hover:bg-bg-tertiary hover:text-text-primary"
+              :title="t('article.audioPlayer.skipForward')"
+              @click="skipForward"
+            >
+              <PhFastForward :size="14" />
+            </button>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+          <button
+            class="h-10 w-10 flex-shrink-0 rounded-full border border-border bg-bg-tertiary text-text-primary hover:text-accent hover:border-accent transition-colors flex items-center justify-center"
+            :title="
+              isPlaying ? t('article.audioPlayer.pause') : t('article.audioPlayer.play')
+            "
+            @click="handlePodcastPlaybackToggle"
+          >
+            <PhPause v-if="isPlaying" :size="18" weight="fill" />
+            <PhPlay v-else :size="18" weight="fill" />
+          </button>
+
+          <div class="min-w-0 flex-1">
+            <div class="truncate text-sm font-medium text-text-primary">
+              {{ currentArticleTitle || t('article.audioPlayer.podcastAudio') }}
+            </div>
+            <div class="mt-0.5 text-xs text-text-secondary">
+              {{ formatAudioTime(currentTime) }} / {{ formatAudioTime(duration) }}
+            </div>
+          </div>
+        </div>
+
+        <div
+          class="mt-2 h-1 w-full cursor-pointer overflow-hidden rounded-full bg-bg-tertiary"
+          :title="t('article.audioPlayer.podcastAudio')"
+          @click="handleSeek"
+        >
+          <div
+            class="h-full bg-accent transition-all duration-200 ease-out"
+            :style="{ width: `${playbackProgress}%` }"
+          ></div>
+        </div>
       </div>
     </div>
   </Transition>

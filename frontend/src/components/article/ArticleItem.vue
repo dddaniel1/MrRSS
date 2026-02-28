@@ -210,6 +210,7 @@ async function handleAudioToggle(event: MouseEvent) {
     url: props.article.audio_url,
     title: props.article.title,
     articleId: props.article.id,
+    feedId: props.article.feed_id,
   });
 }
 

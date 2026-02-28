@@ -5,11 +5,13 @@ export interface AudioSourceInfo {
   url: string;
   title?: string;
   articleId?: number;
+  feedId?: number;
 }
 
 const currentSourceUrl = ref('');
 const currentArticleTitle = ref('');
 const currentArticleId = ref<number | null>(null);
+const currentFeedId = ref<number | null>(null);
 
 const isPlaying = ref(false);
 const currentTime = ref(0);
@@ -87,6 +89,7 @@ function setSource(source: AudioSourceInfo) {
   currentSourceUrl.value = source.url;
   currentArticleTitle.value = source.title || '';
   currentArticleId.value = source.articleId ?? null;
+  currentFeedId.value = source.feedId ?? null;
 }
 
 async function playSource(source: AudioSourceInfo, t: ReturnType<typeof useI18n>['t']) {
@@ -261,10 +264,29 @@ export function useGlobalAudioPlayer() {
     audio.currentTime = Math.min(duration.value, audio.currentTime + 10);
   }
 
+  function closePlayer() {
+    const audio = getAudioElement();
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+
+    currentSourceUrl.value = '';
+    currentArticleTitle.value = '';
+    currentArticleId.value = null;
+    currentFeedId.value = null;
+    currentTime.value = 0;
+    duration.value = 0;
+    buffered.value = 0;
+    hasLoadedMetadata.value = false;
+    isPlaying.value = false;
+    hideLoading();
+  }
+
   return {
     currentSourceUrl,
     currentArticleTitle,
     currentArticleId,
+    currentFeedId,
     isPlaying,
     currentTime,
     duration,
@@ -282,5 +304,6 @@ export function useGlobalAudioPlayer() {
     setVolume,
     skipBackward,
     skipForward,
+    closePlayer,
   };
 }
