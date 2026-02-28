@@ -5,6 +5,7 @@ import {
   PhEyeSlash,
   PhImage,
   PhPlay,
+  PhTwitterLogo,
   PhDotsSixVertical,
   PhLock,
 } from '@phosphor-icons/vue';
@@ -152,6 +153,12 @@ function handleDragEnd() {
       :size="16"
       class="text-accent shrink-0"
       :title="t('setting.feed.videoMode')"
+    />
+    <PhTwitterLogo
+      v-if="feed.is_timeline_mode"
+      :size="16"
+      class="text-accent shrink-0"
+      :title="t('setting.feed.timelineMode')"
     />
     <PhEyeSlash
       v-if="feed.hide_from_timeline"

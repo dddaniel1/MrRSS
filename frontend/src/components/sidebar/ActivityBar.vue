@@ -13,7 +13,7 @@ import {
   PhPlay,
   PhYoutubeLogo,
   PhPause,
-  PhChatCircle,
+  PhTwitterLogo,
 } from '@phosphor-icons/vue';
 import { ref, onMounted, computed } from 'vue';
 import { useAppStore } from '@/stores/app';
@@ -76,7 +76,7 @@ const navItems: NavItem[] = [
   },
   {
     id: 'timeline',
-    icon: PhChatCircle,
+    icon: PhTwitterLogo,
     label: t('sidebar.activity.timeline'),
     filterType: 'timeline',
   },

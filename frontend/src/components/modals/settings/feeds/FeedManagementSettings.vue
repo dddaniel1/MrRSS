@@ -15,7 +15,7 @@ import {
   PhXCircle,
   PhImage,
   PhPlay,
-  PhChatCircle,
+  PhTwitterLogo,
   PhMagnifyingGlass,
   PhX,
 } from '@phosphor-icons/vue';
@@ -344,7 +344,7 @@ async function handleFeedClick(feed: Feed, event: Event) {
         />
       </div>
       <div class="flex items-center gap-2 px-2.5 py-1.5 rounded-md border border-border bg-bg-secondary">
-        <PhChatCircle :size="16" class="text-text-secondary" />
+        <PhTwitterLogo :size="16" class="text-text-secondary" />
         <span class="text-xs sm:text-sm text-text-primary">
           {{ t('setting.feed.timelineMode') }}
         </span>
@@ -573,7 +573,7 @@ async function handleFeedClick(feed: Feed, event: Event) {
                 class="text-accent shrink-0 inline"
                 :title="t('setting.feed.videoMode')"
               />
-              <PhChatCircle
+              <PhTwitterLogo
                 v-if="feed.is_timeline_mode"
                 :size="14"
                 class="text-accent shrink-0 inline"

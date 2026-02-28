@@ -9,7 +9,7 @@ import {
   PhGlobe,
   PhEnvelope,
   PhEnvelopeOpen,
-  PhChatCircle,
+  PhTwitterLogo,
   PhArrowLeft,
   PhBookmarkSimple,
 } from '@phosphor-icons/vue';
@@ -637,7 +637,7 @@ onUnmounted(() => {
 
       <!-- Empty state -->
       <div v-else-if="!isLoading" class="flex flex-col items-center justify-center h-full gap-4">
-        <PhChatCircle :size="64" class="text-text-secondary opacity-50" />
+        <PhTwitterLogo :size="64" class="text-text-secondary opacity-50" />
         <p class="text-text-secondary">{{ t('article.content.noArticles') }}</p>
       </div>
 
