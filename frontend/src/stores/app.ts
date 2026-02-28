@@ -109,67 +109,17 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function setFeed(feedId: number): void {
-    // Check if this feed is an image mode feed
-    const feed = feeds.value.find((f) => f.id === feedId);
-    if (feed?.is_video_mode) {
-      currentFilter.value = 'videoGallery';
-      currentFeedId.value = feedId;
-      currentCategory.value = null;
-      tempSelection.value = { feedId, category: null };
-    } else if (feed?.is_image_mode) {
-      // For image mode feeds, switch filter to image gallery
-      currentFilter.value = 'imageGallery';
-      currentFeedId.value = feedId;
-      currentCategory.value = null;
-      tempSelection.value = { feedId, category: null };
-      // Clear and reset will be handled by fetchArticles
-    } else {
-      // For regular feeds, keep currentFilter and set tempSelection
-      currentFeedId.value = feedId;
-      currentCategory.value = null;
-      tempSelection.value = { feedId, category: null };
-      fetchArticles();
-    }
+    currentFeedId.value = feedId;
+    currentCategory.value = null;
+    tempSelection.value = { feedId, category: null };
+    fetchArticles();
   }
 
   function setCategory(category: string): void {
-    // Check if this category contains only image mode feeds
-    const categoryFeeds = feeds.value.filter((f) => {
-      // Handle uncategorized category (empty string)
-      if (category === '') {
-        return !f.category || f.category === '';
-      }
-
-      // Handle nested categories by checking if the feed's category starts with the selected path
-      // For example, if category is "Tech", it should match "Tech", "Tech/AI", "Tech/AI/ML", etc.
-      const feedCategory = f.category || '';
-      return feedCategory === category || feedCategory.startsWith(category + '/');
-    });
-
-    const allVideoMode = categoryFeeds.length > 0 && categoryFeeds.every((f) => f.is_video_mode);
-    const allImageMode = categoryFeeds.length > 0 && categoryFeeds.every((f) => f.is_image_mode);
-
-    // If all feeds in this category are video mode, switch to video gallery filter
-    if (allVideoMode) {
-      currentFilter.value = 'videoGallery';
-      currentFeedId.value = null;
-      currentCategory.value = category;
-      tempSelection.value = { feedId: null, category };
-      // Don't call fetchArticles here - VideoGalleryView will handle fetching
-    } else if (allImageMode) {
-      // If all feeds in this category are image mode, switch to image gallery filter
-      currentFilter.value = 'imageGallery';
-      currentFeedId.value = null;
-      currentCategory.value = category;
-      tempSelection.value = { feedId: null, category };
-      // Don't call fetchArticles here - ImageGalleryView will handle fetching
-    } else {
-      // For regular categories, keep currentFilter and set tempSelection
-      currentFeedId.value = null;
-      currentCategory.value = category;
-      tempSelection.value = { feedId: null, category };
-      fetchArticles();
-    }
+    currentFeedId.value = null;
+    currentCategory.value = category;
+    tempSelection.value = { feedId: null, category };
+    fetchArticles();
   }
 
   async function fetchArticles(append: boolean = false): Promise<void> {

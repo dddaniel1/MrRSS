@@ -6,7 +6,18 @@ import { useDragDrop } from '@/composables/ui/useDragDrop';
 import { useSidebar } from '@/composables/core/useSidebar';
 import { useSettings } from '@/composables/core/useSettings';
 import SidebarCategory from './SidebarCategory.vue';
-import { PhMagnifyingGlass, PhX, PhPencil, PhCheck, PhPushPin } from '@phosphor-icons/vue';
+import {
+  PhMagnifyingGlass,
+  PhX,
+  PhPencil,
+  PhCheck,
+  PhPushPin,
+  PhPushPinSlash,
+  PhArrowClockwise,
+  PhCircle,
+  PhClock,
+  PhLightning,
+} from '@phosphor-icons/vue';
 import type { Feed } from '@/types/models';
 
 const props = defineProps<{
@@ -55,6 +66,7 @@ onUnmounted(() => {
 
 // Edit mode for drag reordering
 const isEditMode = ref(false);
+const showRefreshTooltip = ref(false);
 
 // Local state to track if user is actively dragging
 const isDragging = ref(false);
@@ -62,6 +74,18 @@ let dropHandled = false;
 
 function toggleEditMode() {
   isEditMode.value = !isEditMode.value;
+}
+
+async function refreshFeeds(): Promise<void> {
+  await store.refreshFeeds();
+}
+
+function onRefreshTooltipShow(): void {
+  showRefreshTooltip.value = true;
+}
+
+function onRefreshTooltipHide(): void {
+  showRefreshTooltip.value = false;
 }
 
 const {
@@ -364,6 +388,133 @@ function handleTogglePin() {
       >
         <h3 class="m-0 text-base sm:text-lg font-semibold">{{ drawerTitle }}</h3>
         <div class="flex items-center gap-1 sm:gap-2">
+          <div
+            class="relative"
+            @mouseenter="onRefreshTooltipShow"
+            @mouseleave="onRefreshTooltipHide"
+          >
+            <button
+              class="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary p-1 sm:p-1.5 rounded transition-colors"
+              :title="t('article.action.refresh')"
+              @click="refreshFeeds"
+            >
+              <PhArrowClockwise
+                :size="18"
+                class="sm:w-5 sm:h-5"
+                :class="store.refreshProgress.isRunning ? 'animate-spin' : ''"
+              />
+            </button>
+            <div
+              v-if="
+                store.refreshProgress.isRunning &&
+                (store.refreshProgress.queue_task_count || 0) +
+                  (store.refreshProgress.pool_task_count || 0) >
+                  0
+              "
+              class="absolute -top-1 -right-1 bg-accent text-white text-[9px] sm:text-[10px] font-bold rounded-full min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 px-0.5 sm:px-1 flex items-center justify-center"
+            >
+              {{
+                (store.refreshProgress.queue_task_count || 0) +
+                (store.refreshProgress.pool_task_count || 0)
+              }}
+            </div>
+
+            <Transition
+              enter-active-class="transition ease-out duration-200"
+              enter-from-class="opacity-0 scale-95"
+              enter-to-class="opacity-100 scale-100"
+              leave-active-class="transition ease-in duration-150"
+              leave-from-class="opacity-100 scale-100"
+              leave-to-class="opacity-0 scale-95"
+            >
+              <div
+                v-if="
+                  showRefreshTooltip &&
+                  ((store.refreshProgress.pool_task_count || 0) > 0 ||
+                    (store.refreshProgress.queue_task_count || 0) > 0 ||
+                    (store.refreshProgress.article_click_count || 0) > 0)
+                "
+                class="absolute left-full top-full ml-2 mt-1 z-50 w-72 bg-bg-secondary rounded-lg shadow-xl overflow-hidden"
+              >
+                <div class="px-3 py-2">
+                  <div class="text-xs font-semibold text-text-primary mb-2 flex items-center gap-2">
+                    <PhArrowClockwise :size="12" class="animate-spin-slow" />
+                    {{ t('article.action.refreshing') }}
+                  </div>
+
+                  <div v-if="(store.refreshProgress.pool_task_count || 0) > 0" class="mb-2">
+                    <div
+                      class="text-[10px] text-text-secondary mb-1.5 font-medium flex items-center gap-1"
+                    >
+                      <PhCircle :size="10" class="text-accent" />
+                      {{ t('article.progress.activeTasks') }} ({{
+                        store.refreshProgress.pool_task_count || 0
+                      }})
+                    </div>
+                    <div class="space-y-0.5">
+                      <div
+                        v-for="(task, index) in store.refreshProgress.pool_tasks || []"
+                        :key="'pool-' + index"
+                        class="text-xs text-text-primary bg-accent/10 px-2.5 py-1.5 rounded truncate"
+                        :title="task.feed_title"
+                      >
+                        <div class="flex items-center gap-2">
+                          <PhCircle :size="10" class="text-accent animate-pulse flex-shrink-0" />
+                          <span class="truncate flex-1">{{ task.feed_title }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-if="(store.refreshProgress.queue_task_count || 0) > 0">
+                    <div
+                      class="text-[10px] text-text-secondary mb-1.5 font-medium flex items-center gap-1"
+                    >
+                      <PhClock :size="10" />
+                      {{ t('sidebar.activity.queuedTasks') }} ({{
+                        store.refreshProgress.queue_task_count || 0
+                      }})
+                    </div>
+                    <div class="space-y-0.5">
+                      <div
+                        v-for="(task, index) in store.refreshProgress.queue_tasks || []"
+                        :key="'queue-' + index"
+                        class="text-xs text-text-secondary bg-bg-tertiary/50 px-2.5 py-1.5 rounded truncate"
+                        :title="task.feed_title"
+                      >
+                        <div class="flex items-center gap-2">
+                          <PhClock :size="10" class="flex-shrink-0" />
+                          <span class="truncate flex-1">{{ task.feed_title }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    v-if="(store.refreshProgress.article_click_count || 0) > 0"
+                    class="mt-2 pt-2 border-t border-border/50"
+                  >
+                    <div
+                      class="text-[10px] text-text-secondary mb-1.5 font-medium flex items-center gap-1"
+                    >
+                      <PhLightning :size="10" class="text-accent" />
+                      {{ t('sidebar.activity.immediateTasks') }} ({{
+                        store.refreshProgress.article_click_count || 0
+                      }})
+                    </div>
+                    <div class="text-xs text-accent bg-accent/10 px-2.5 py-1.5 rounded truncate">
+                      <div class="flex items-center gap-2">
+                        <PhLightning :size="10" class="flex-shrink-0" />
+                        <span class="truncate">{{
+                          t('article.content.fetchingArticleContent')
+                        }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </div>
           <!-- Pin/Unpin Button -->
           <button
             class="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary p-1 sm:p-1.5 rounded transition-colors"

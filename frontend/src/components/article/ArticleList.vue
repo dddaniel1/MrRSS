@@ -3,7 +3,6 @@ import { useAppStore } from '@/stores/app';
 import { useI18n } from 'vue-i18n';
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, type Ref } from 'vue';
 import {
-  PhArrowClockwise,
   PhList,
   PhSpinner,
   PhFunnel,
@@ -11,9 +10,6 @@ import {
   PhCheckCircle,
   PhEye,
   PhEyeSlash,
-  PhCircle,
-  PhClock,
-  PhLightning,
 } from '@phosphor-icons/vue';
 import ArticleFilterModal from '../modals/filter/ArticleFilterModal.vue';
 import ArticleItem from './ArticleItem.vue';
@@ -33,9 +29,6 @@ const { settings } = useSettings();
 const listRef: Ref<HTMLDivElement | null> = ref(null);
 const defaultViewMode = ref<'original' | 'rendered' | 'external'>('original');
 const showFilterModal = ref(false);
-const isRefreshing = ref(false);
-const savedScrollTop = ref(0);
-const showRefreshTooltip = ref(false);
 // Track articles that should be temporarily kept in list even if read
 const temporarilyKeepArticles = ref<Set<number>>(new Set());
 // Flag to control when scroll position should be restored
@@ -226,21 +219,6 @@ watch(
   }
 );
 
-// Watch for refresh completion to scroll to top
-watch(
-  () => store.refreshProgress.isRunning,
-  (isRunning) => {
-    if (!isRunning && isRefreshing.value) {
-      // Refresh completed, scroll to top and reset state
-      isRefreshing.value = false;
-      shouldRestoreScroll.value = false; // Disable scroll restoration after refresh
-      if (listRef.value) {
-        listRef.value.scrollTop = 0;
-      }
-    }
-  }
-);
-
 // Watch for filtered articles length changes to re-observe new articles
 // Changed from deep watch to length watch for better performance
 watch(
@@ -341,16 +319,6 @@ function onToggleFilter(): void {
   showFilterModal.value = !showFilterModal.value;
 }
 
-// Show tooltip when hovering over refresh button
-function onRefreshTooltipShow(): void {
-  showRefreshTooltip.value = true;
-  // Task details are automatically updated via pollProgress()
-}
-
-function onRefreshTooltipHide(): void {
-  showRefreshTooltip.value = false;
-}
-
 // Article selection and interaction
 function selectArticle(article: Article): void {
   // Check if we should open in browser based on feed or global settings
@@ -448,18 +416,6 @@ async function handleApplyFilters(filters: typeof activeFilters.value): Promise<
 }
 
 // Actions
-async function refreshArticles(): Promise<void> {
-  // Save current scroll position and set refreshing state
-  if (listRef.value) {
-    savedScrollTop.value = listRef.value.scrollTop;
-  }
-  isRefreshing.value = true;
-  shouldRestoreScroll.value = true; // Enable scroll restoration during refresh
-
-  await store.refreshFeeds();
-  // Note: Scrolling to top is now handled by the watch on refreshProgress.isRunning
-}
-
 async function markAllAsRead(): Promise<void> {
   // If filters are active, mark only filtered articles as read
   if (activeFilters.value.length > 0) {
@@ -583,137 +539,6 @@ function handleHoverMarkAsRead(articleId: number): void {
             >
               {{ activeFilters.length }}
             </div>
-          </div>
-          <div
-            class="relative"
-            @mouseenter="onRefreshTooltipShow"
-            @mouseleave="onRefreshTooltipHide"
-          >
-            <button
-              class="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary p-1 sm:p-1.5 rounded transition-colors"
-              :title="t('article.action.refresh')"
-              @click="refreshArticles"
-            >
-              <PhArrowClockwise
-                :size="18"
-                class="sm:w-5 sm:h-5"
-                :class="store.refreshProgress.isRunning ? 'animate-spin' : ''"
-              />
-            </button>
-            <div
-              v-if="
-                store.refreshProgress.isRunning &&
-                (store.refreshProgress.queue_task_count || 0) +
-                  (store.refreshProgress.pool_task_count || 0) >
-                  0
-              "
-              class="absolute -top-1 -right-1 bg-accent text-white text-[9px] sm:text-[10px] font-bold rounded-full min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 px-0.5 sm:px-1 flex items-center justify-center"
-            >
-              {{
-                (store.refreshProgress.queue_task_count || 0) +
-                (store.refreshProgress.pool_task_count || 0)
-              }}
-            </div>
-
-            <!-- Task Pool Tooltip -->
-            <Transition
-              enter-active-class="transition ease-out duration-200"
-              enter-from-class="opacity-0 scale-95"
-              enter-to-class="opacity-100 scale-100"
-              leave-active-class="transition ease-in duration-150"
-              leave-from-class="opacity-100 scale-100"
-              leave-to-class="opacity-0 scale-95"
-            >
-              <div
-                v-if="
-                  showRefreshTooltip &&
-                  ((store.refreshProgress.pool_task_count || 0) > 0 ||
-                    (store.refreshProgress.queue_task_count || 0) > 0 ||
-                    (store.refreshProgress.article_click_count || 0) > 0)
-                "
-                class="absolute right-0 top-full mt-2 z-50 w-72 bg-bg-secondary rounded-lg shadow-xl overflow-hidden"
-              >
-                <div class="px-3 py-2">
-                  <div class="text-xs font-semibold text-text-primary mb-2 flex items-center gap-2">
-                    <PhArrowClockwise :size="12" class="animate-spin-slow" />
-                    {{ t('article.action.refreshing') }}
-                  </div>
-
-                  <!-- Pool Tasks - Show all tasks sorted alphabetically -->
-                  <div v-if="(store.refreshProgress.pool_task_count || 0) > 0" class="mb-2">
-                    <div
-                      class="text-[10px] text-text-secondary mb-1.5 font-medium flex items-center gap-1"
-                    >
-                      <PhCircle :size="10" class="text-accent" />
-                      {{ t('article.progress.activeTasks') }} ({{
-                        store.refreshProgress.pool_task_count || 0
-                      }})
-                    </div>
-                    <div class="space-y-0.5">
-                      <div
-                        v-for="(task, index) in store.refreshProgress.pool_tasks || []"
-                        :key="'pool-' + index"
-                        class="text-xs text-text-primary bg-accent/10 px-2.5 py-1.5 rounded truncate"
-                        :title="task.feed_title"
-                      >
-                        <div class="flex items-center gap-2">
-                          <PhCircle :size="10" class="text-accent animate-pulse flex-shrink-0" />
-                          <span class="truncate flex-1">{{ task.feed_title }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Queue Tasks - Show first 3 -->
-                  <div v-if="(store.refreshProgress.queue_task_count || 0) > 0">
-                    <div
-                      class="text-[10px] text-text-secondary mb-1.5 font-medium flex items-center gap-1"
-                    >
-                      <PhClock :size="10" />
-                      {{ t('sidebar.activity.queuedTasks') }} ({{
-                        store.refreshProgress.queue_task_count || 0
-                      }})
-                    </div>
-                    <div class="space-y-0.5">
-                      <div
-                        v-for="(task, index) in store.refreshProgress.queue_tasks || []"
-                        :key="'queue-' + index"
-                        class="text-xs text-text-secondary bg-bg-tertiary/50 px-2.5 py-1.5 rounded truncate"
-                        :title="task.feed_title"
-                      >
-                        <div class="flex items-center gap-2">
-                          <PhClock :size="10" class="flex-shrink-0" />
-                          <span class="truncate flex-1">{{ task.feed_title }}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <!-- Article Click Tasks -->
-                  <div
-                    v-if="(store.refreshProgress.article_click_count || 0) > 0"
-                    class="mt-2 pt-2 border-t border-border/50"
-                  >
-                    <div
-                      class="text-[10px] text-text-secondary mb-1.5 font-medium flex items-center gap-1"
-                    >
-                      <PhLightning :size="10" class="text-accent" />
-                      {{ t('sidebar.activity.immediateTasks') }} ({{
-                        store.refreshProgress.article_click_count || 0
-                      }})
-                    </div>
-                    <div class="text-xs text-accent bg-accent/10 px-2.5 py-1.5 rounded truncate">
-                      <div class="flex items-center gap-2">
-                        <PhLightning :size="10" class="flex-shrink-0" />
-                        <span class="truncate">{{
-                          t('article.content.fetchingArticleContent')
-                        }}</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </Transition>
           </div>
           <button class="md:hidden text-xl sm:text-2xl p-1" @click="emit('toggleSidebar')">
             <PhList :size="18" class="sm:w-5 sm:h-5" />
