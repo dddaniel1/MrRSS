@@ -421,6 +421,9 @@ function detailOpenOriginal() {
 }
 
 watch(feedId, async () => {
+  if (selectedArticle.value) {
+    closeDetail();
+  }
   page.value = 1;
   articles.value = [];
   hasMore.value = true;
@@ -429,12 +432,24 @@ watch(feedId, async () => {
 });
 
 watch(category, async () => {
+  if (selectedArticle.value) {
+    closeDetail();
+  }
   page.value = 1;
   articles.value = [];
   hasMore.value = true;
   await fetchArticles();
   await nextTick();
 });
+
+watch(
+  () => store.tempSelection,
+  () => {
+    if (selectedArticle.value) {
+      closeDetail();
+    }
+  }
+);
 
 onMounted(async () => {
   mediaCacheEnabled.value = await isMediaCacheEnabled();
