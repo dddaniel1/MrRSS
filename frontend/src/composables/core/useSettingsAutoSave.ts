@@ -159,11 +159,20 @@ export function useSettingsAutoSave(settings: Ref<SettingsData> | (() => Setting
         })
       );
 
-      // Notify about compact_mode change
+      // Notify about article layout mode change
+      window.dispatchEvent(
+        new CustomEvent('article-layout-mode-changed', {
+          detail: {
+            mode: settingsRef.value.article_layout_mode,
+          },
+        })
+      );
+
+      // Keep compatibility with legacy compact mode listeners
       window.dispatchEvent(
         new CustomEvent('compact-mode-changed', {
           detail: {
-            enabled: settingsRef.value.compact_mode,
+            enabled: settingsRef.value.article_layout_mode === 'compact',
           },
         })
       );

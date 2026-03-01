@@ -7,6 +7,7 @@ import ArticleDetail from './components/article/ArticleDetail.vue';
 import ImageGalleryView from './components/article/ImageGalleryView.vue';
 import VideoGalleryView from './components/article/VideoGalleryView.vue';
 import TimelineView from './components/article/TimelineView.vue';
+import CardGalleryView from './components/article/CardGalleryView.vue';
 import AddFeedModal from './components/modals/feed/AddFeedModal.vue';
 import EditFeedModal from './components/modals/feed/EditFeedModal.vue';
 import SettingsModal from './components/modals/SettingsModal.vue';
@@ -40,6 +41,7 @@ const isSidebarOpen = ref(true);
 const isImageGalleryMode = computed(() => store.currentFilter === 'imageGallery');
 const isVideoGalleryMode = computed(() => store.currentFilter === 'videoGallery');
 const isTimelineMode = computed(() => store.currentFilter === 'timeline');
+const isCardLayoutMode = ref(false);
 
 // Use composables
 const { confirmDialog, inputDialog, toasts, removeToast, installGlobalHandlers } =
@@ -94,8 +96,13 @@ onMounted(async () => {
     const res = await fetch('/api/settings');
     const data = await res.json();
 
+    const layoutMode =
+      data.article_layout_mode ||
+      ((data.compact_mode === true || data.compact_mode === 'true') ? 'compact' : 'normal');
+    isCardLayoutMode.value = layoutMode === 'grid';
+
     // Set initial article list width based on compact mode setting
-    const isCompactMode = data.compact_mode === true || data.compact_mode === 'true';
+    const isCompactMode = layoutMode === 'compact';
     // First set the compact mode, then set the width (order matters)
     setCompactMode(isCompactMode);
     setArticleListWidth(isCompactMode ? 500 : 350);
@@ -224,6 +231,15 @@ window.addEventListener('compact-mode-changed', (e) => {
   setArticleListWidth(enabled ? 600 : 400); // Always update width when user changes setting
 });
 
+window.addEventListener('article-layout-mode-changed', (e) => {
+  const customEvent = e as CustomEvent<{ mode: string }>;
+  const mode = customEvent.detail?.mode || 'normal';
+  isCardLayoutMode.value = mode === 'grid';
+  const compact = mode === 'compact';
+  setCompactMode(compact);
+  setArticleListWidth(compact ? 600 : 400);
+});
+
 // Global Context Menu Event Listener
 window.addEventListener('open-context-menu', (e) => {
   openContextMenu(e as CustomEvent<any>);
@@ -291,11 +307,16 @@ function onFeedUpdated(): void {
 
     <!-- Show ArticleList and ArticleDetail when not in special view mode -->
     <template v-else>
-      <ArticleList :is-sidebar-open="isSidebarOpen" @toggle-sidebar="toggleSidebar" />
+      <template v-if="isCardLayoutMode">
+        <CardGalleryView :is-sidebar-open="isSidebarOpen" @toggle-sidebar="toggleSidebar" />
+      </template>
+      <template v-else>
+        <ArticleList :is-sidebar-open="isSidebarOpen" @toggle-sidebar="toggleSidebar" />
 
-      <div class="resizer hidden md:block" @mousedown="startResizeArticleList"></div>
+        <div class="resizer hidden md:block" @mousedown="startResizeArticleList"></div>
 
-      <ArticleDetail />
+        <ArticleDetail />
+      </template>
     </template>
 
     <AddFeedModal v-if="showAddFeed" @close="showAddFeed = false" @added="onFeedAdded" />

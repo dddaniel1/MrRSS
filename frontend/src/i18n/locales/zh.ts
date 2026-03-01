@@ -835,6 +835,11 @@ const zh: TranslationMessages = {
       autoShowAllContent: '自动展示所有内容',
       autoShowAllContentDesc:
         '作为渲染内容查看时，自动显示所有文章的完整内容（可能会增加加载时间）',
+      articleListLayout: '文章列表布局',
+      articleListLayoutCompact: '紧凑布局',
+      articleListLayoutDesc: '选择文章列表使用的布局样式',
+      articleListLayoutGrid: '卡片布局',
+      articleListLayoutNormal: '正常布局',
       defaultViewMode: '文章查看模式',
       defaultViewModeDesc: '选择文章应如何显示',
       hideAdvancedSettings: '隐藏高级设置',

@@ -848,6 +848,11 @@ const en: TranslationMessages = {
       autoShowAllContent: 'Auto Show All Content',
       autoShowAllContentDesc:
         'Automatically display the full content of all articles when viewed as rendered content (may increase loading time)',
+      articleListLayout: 'Article List Layout',
+      articleListLayoutCompact: 'Compact',
+      articleListLayoutDesc: 'Choose the layout style used in the article list',
+      articleListLayoutGrid: 'Card',
+      articleListLayoutNormal: 'Normal',
       defaultViewMode: 'Article View Mode',
       defaultViewModeDesc: 'Choose how articles should be displayed',
       hideAdvancedSettings: 'Hide Advanced Settings',

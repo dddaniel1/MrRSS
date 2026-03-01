@@ -592,6 +592,13 @@
       "encrypted": false,
       "frontend_key": "autoShowAllContent"
     },
+    "article_layout_mode": {
+      "type": "string",
+      "default": "normal",
+      "category": "reading",
+      "encrypted": false,
+      "frontend_key": "articleLayoutMode"
+    },
     "custom_css_file": {
       "type": "string",
       "default": "",

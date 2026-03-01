@@ -4,21 +4,20 @@ import { useI18n } from 'vue-i18n';
 import { ref, computed, onMounted, onBeforeUnmount, watch, nextTick, type Ref } from 'vue';
 import {
   PhList,
+  PhListDashes,
+  PhSquaresFour,
   PhSpinner,
-  PhFunnel,
-  PhTrash,
-  PhCheckCircle,
-  PhEye,
-  PhEyeSlash,
+  PhTextIndent,
 } from '@phosphor-icons/vue';
 import ArticleFilterModal from '../modals/filter/ArticleFilterModal.vue';
 import ArticleItem from './ArticleItem.vue';
+import ArticleHeaderActions from './ArticleHeaderActions.vue';
 import { useArticleTranslation } from '@/composables/article/useArticleTranslation';
 import { useArticleFilter } from '@/composables/article/useArticleFilter';
 import { useArticleActions } from '@/composables/article/useArticleActions';
 import { useShowPreviewImages } from '@/composables/ui/useShowPreviewImages';
 import { useSettings } from '@/composables/core/useSettings';
-import { parseSettingsData } from '@/composables/core/useSettings.generated';
+import { buildAutoSavePayload, parseSettingsData } from '@/composables/core/useSettings.generated';
 import { openInBrowser } from '@/utils/browser';
 import type { Article } from '@/types/models';
 
@@ -79,6 +78,35 @@ const filteredArticles = computed(() => {
   }
 
   return articles;
+});
+
+const articleLayoutMode = computed<'normal' | 'compact' | 'grid'>(() => {
+  const mode = settings.value.article_layout_mode;
+  if (mode === 'compact' || mode === 'grid' || mode === 'normal') {
+    return mode;
+  }
+
+  return settings.value.compact_mode ? 'compact' : 'normal';
+});
+
+const currentLayoutIcon = computed(() => {
+  if (articleLayoutMode.value === 'compact') {
+    return PhTextIndent;
+  }
+  if (articleLayoutMode.value === 'grid') {
+    return PhSquaresFour;
+  }
+  return PhListDashes;
+});
+
+const currentLayoutLabel = computed(() => {
+  if (articleLayoutMode.value === 'compact') {
+    return t('setting.reading.articleListLayoutCompact');
+  }
+  if (articleLayoutMode.value === 'grid') {
+    return t('setting.reading.articleListLayoutGrid');
+  }
+  return t('setting.reading.articleListLayoutNormal');
 });
 
 const { showArticleContextMenu } = useArticleActions(t, defaultViewMode, async () => {
@@ -182,8 +210,10 @@ onMounted(async () => {
     'show-preview-images-changed',
     onShowPreviewImagesChanged as EventListener
   );
-  // Listen for compact mode changes
-  window.addEventListener('compact-mode-changed', onCompactModeChanged as EventListener);
+  // Listen for article layout mode changes
+  window.addEventListener('article-layout-mode-changed', onArticleLayoutModeChanged as EventListener);
+  // Keep compatibility with legacy compact mode event
+  window.addEventListener('compact-mode-changed', onArticleLayoutModeChanged as EventListener);
   // Listen for settings loaded event (from App.vue on startup)
   window.addEventListener('settings-loaded', onSettingsLoaded as EventListener);
   // Listen for refresh articles events
@@ -251,7 +281,11 @@ onBeforeUnmount(() => {
     'show-preview-images-changed',
     onShowPreviewImagesChanged as EventListener
   );
-  window.removeEventListener('compact-mode-changed', onCompactModeChanged as EventListener);
+  window.removeEventListener(
+    'article-layout-mode-changed',
+    onArticleLayoutModeChanged as EventListener
+  );
+  window.removeEventListener('compact-mode-changed', onArticleLayoutModeChanged as EventListener);
   window.removeEventListener('settings-loaded', onSettingsLoaded as EventListener);
   window.removeEventListener('refresh-articles', onRefreshArticles);
   window.removeEventListener('toggle-filter', onToggleFilter);
@@ -290,14 +324,64 @@ function onShowPreviewImagesChanged(e: Event): void {
   updateValue(customEvent.detail.value);
 }
 
-function onCompactModeChanged(): void {
+function onArticleLayoutModeChanged(): void {
   // Force a re-fetch of settings to update the reactive settings object
   fetch('/api/settings')
     .then((res) => res.json())
     .then((data) => {
       settings.value = parseSettingsData(data);
     })
-    .catch((err) => console.error('Error refreshing settings after compact mode change:', err));
+    .catch((err) => console.error('Error refreshing settings after article layout mode change:', err));
+}
+
+async function setArticleLayoutMode(mode: 'normal' | 'compact' | 'grid'): Promise<void> {
+  if (articleLayoutMode.value === mode) {
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/settings');
+    if (!res.ok) {
+      throw new Error('Failed to fetch current settings before update');
+    }
+
+    const data = await res.json();
+    const parsed = parseSettingsData(data);
+    parsed.article_layout_mode = mode;
+    parsed.compact_mode = mode === 'compact';
+
+    await fetch('/api/settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildAutoSavePayload({ value: parsed })),
+    });
+
+    settings.value.article_layout_mode = mode;
+    settings.value.compact_mode = mode === 'compact';
+
+    window.dispatchEvent(
+      new CustomEvent('article-layout-mode-changed', {
+        detail: { mode },
+      })
+    );
+    window.dispatchEvent(
+      new CustomEvent('compact-mode-changed', {
+        detail: { enabled: mode === 'compact' },
+      })
+    );
+  } catch (e) {
+    console.error('Failed to update article layout mode:', e);
+  }
+}
+
+function cycleArticleLayoutMode(): void {
+  const nextMode =
+    articleLayoutMode.value === 'normal'
+      ? 'compact'
+      : articleLayoutMode.value === 'compact'
+        ? 'grid'
+        : 'normal';
+  setArticleLayoutMode(nextMode);
 }
 
 function onSettingsLoaded(): void {
@@ -306,7 +390,7 @@ function onSettingsLoaded(): void {
     .then((res) => res.json())
     .then((data) => {
       settings.value = parseSettingsData(data);
-      console.log('ArticleList settings loaded on startup:', settings.value.compact_mode);
+      console.log('ArticleList settings loaded on startup:', settings.value.article_layout_mode);
     })
     .catch((err) => console.error('Error loading initial settings in ArticleList:', err));
 }
@@ -496,50 +580,18 @@ function handleHoverMarkAsRead(articleId: number): void {
           {{ articleListTitle }}
         </h3>
         <div class="flex items-center gap-1 sm:gap-2">
-          <!-- Clear Read Later button - only shown when viewing Read Later list -->
-          <button
-            v-if="store.currentFilter === 'readLater'"
-            class="text-text-secondary hover:text-red-500 hover:bg-bg-tertiary p-1 sm:p-1.5 rounded transition-colors"
-            :title="t('common.clearReadLater')"
-            @click="clearReadLater"
-          >
-            <PhTrash :size="18" class="sm:w-5 sm:h-5" />
-          </button>
-          <button
-            class="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary p-1 sm:p-1.5 rounded transition-colors"
-            :title="t('article.action.markAllRead')"
-            @click="markAllAsRead"
-          >
-            <PhCheckCircle :size="18" class="sm:w-5 sm:h-5" />
-          </button>
-          <button
-            class="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary p-1 sm:p-1.5 rounded transition-colors"
-            :class="store.showOnlyUnread ? 'text-accent' : ''"
-            :title="t('setting.reading.showOnlyUnread')"
-            @click="store.toggleShowOnlyUnread()"
-          >
-            <component
-              :is="store.showOnlyUnread ? PhEye : PhEyeSlash"
-              :size="18"
-              class="sm:w-5 sm:h-5"
-            />
-          </button>
-          <div class="relative">
-            <button
-              class="text-text-secondary hover:text-text-primary hover:bg-bg-tertiary p-1 sm:p-1.5 rounded transition-colors"
-              :class="activeFilters.length > 0 ? 'filter-active' : ''"
-              :title="t('modal.filter.filter')"
-              @click="showFilterModal = true"
-            >
-              <PhFunnel :size="18" class="sm:w-5 sm:h-5" />
-            </button>
-            <div
-              v-if="activeFilters.length > 0"
-              class="absolute -top-1 -right-1 bg-accent text-white text-[9px] sm:text-[10px] font-bold rounded-full min-w-[14px] sm:min-w-[16px] h-3.5 sm:h-4 px-0.5 sm:px-1 flex items-center justify-center"
-            >
-              {{ activeFilters.length }}
-            </div>
-          </div>
+          <ArticleHeaderActions
+            :current-filter="store.currentFilter"
+            :show-only-unread="store.showOnlyUnread"
+            :active-filters-count="activeFilters.length"
+            :layout-icon="currentLayoutIcon"
+            :layout-title="currentLayoutLabel"
+            @cycle-layout="cycleArticleLayoutMode"
+            @clear-read-later="clearReadLater"
+            @mark-all-read="markAllAsRead"
+            @toggle-show-only-unread="store.toggleShowOnlyUnread()"
+            @open-filter="showFilterModal = true"
+          />
           <button class="md:hidden text-xl sm:text-2xl p-1" @click="emit('toggleSidebar')">
             <PhList :size="18" class="sm:w-5 sm:h-5" />
           </button>
@@ -556,12 +608,16 @@ function handleHoverMarkAsRead(articleId: number): void {
       </div>
 
       <!-- Article list with content-visibility for performance -->
-      <div class="article-list-container">
+      <div
+        class="article-list-container"
+        :class="{ 'article-list-grid': articleLayoutMode === 'grid' }"
+      >
         <ArticleItem
           v-for="article in visibleArticles"
           :key="article.id"
           :article="article"
           :is-active="store.currentArticleId === article.id"
+          :layout-mode="articleLayoutMode"
           @click="selectArticle(article)"
           @contextmenu="(e) => showArticleContextMenu(e, article)"
           @observe-element="observeArticle"
@@ -605,11 +661,6 @@ function handleHoverMarkAsRead(articleId: number): void {
   }
 }
 
-.filter-active {
-  @apply text-accent border-accent;
-  background-color: rgba(59, 130, 246, 0.1);
-}
-
 .animate-spin {
   animation: spin 1s linear infinite;
 }
@@ -627,6 +678,20 @@ function handleHoverMarkAsRead(articleId: number): void {
 .article-list-container {
   content-visibility: auto;
   contain-intrinsic-size: auto 200px;
+}
+
+.article-list-grid {
+  --article-card-gap: clamp(10px, 1.4vw, 16px);
+  @apply p-2 sm:p-3;
+  column-width: clamp(150px, 18vw, 220px);
+  column-gap: var(--article-card-gap);
+}
+
+.article-list-grid :deep(.article-card.grid) {
+  break-inside: avoid;
+  display: inline-flex;
+  width: 100%;
+  margin-bottom: var(--article-card-gap);
 }
 
 /* Optimize scrolling performance */

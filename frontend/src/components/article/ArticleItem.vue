@@ -14,6 +14,7 @@ import { useGlobalAudioPlayer } from '@/composables/article/useGlobalAudioPlayer
 interface Props {
   article: Article;
   isActive: boolean;
+  layoutMode?: 'normal' | 'compact' | 'grid';
 }
 
 const props = defineProps<Props>();
@@ -31,42 +32,98 @@ const { settings } = useSettings();
 const store = useAppStore();
 const { currentSourceUrl, isPlaying, toggleArticlePlayback } = useGlobalAudioPlayer();
 
-// Compact mode setting
-const compactMode = computed(() => {
-  return settings.value.compact_mode === true;
+const articleLayoutMode = computed<'normal' | 'compact' | 'grid'>(() => {
+  if (props.layoutMode === 'compact' || props.layoutMode === 'grid' || props.layoutMode === 'normal') {
+    return props.layoutMode;
+  }
+
+  const mode = settings.value.article_layout_mode;
+  if (mode === 'compact' || mode === 'grid' || mode === 'normal') {
+    return mode;
+  }
+
+  return settings.value.compact_mode ? 'compact' : 'normal';
 });
 
-// Listen for compact mode changes and initial settings load
-let handleCompactModeChange: (() => void) | null = null;
+const compactMode = computed(() => articleLayoutMode.value === 'compact');
+const gridMode = computed(() => articleLayoutMode.value === 'grid');
 
-// Function to load compact mode settings
-function loadCompactModeSettings() {
+type ArticleWithBodyFields = Article & {
+  content?: string;
+  translated_content?: string;
+  description?: string;
+  translated_description?: string;
+};
+
+function stripHtml(input: string): string {
+  return input.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function truncateText(input: string, maxLength: number): string {
+  if (input.length <= maxLength) {
+    return input;
+  }
+  return `${input.slice(0, maxLength).trimEnd()}...`;
+}
+
+const bodySnippet = computed(() => {
+  if (!gridMode.value) {
+    return '';
+  }
+
+  const article = props.article as ArticleWithBodyFields;
+  const rawBody =
+    article.translated_content ||
+    article.content ||
+    article.translated_description ||
+    article.description ||
+    article.summary ||
+    '';
+
+  if (!rawBody) {
+    return '';
+  }
+
+  return truncateText(stripHtml(rawBody), 180);
+});
+
+// Listen for article layout mode changes and initial settings load
+let handleLayoutModeChange: (() => void) | null = null;
+
+// Function to load article layout mode settings
+function loadArticleLayoutModeSettings() {
   fetch('/api/settings')
     .then((res) => res.json())
     .then((data) => {
       settings.value = {
         ...settings.value,
+        article_layout_mode:
+          data.article_layout_mode ||
+          ((data.compact_mode === true || data.compact_mode === 'true') ? 'compact' : 'normal'),
         compact_mode: data.compact_mode === true || data.compact_mode === 'true',
       };
     })
-    .catch((err) => console.error('Error loading settings in ArticleItem:', err));
+    .catch((err) => console.error('Error loading article layout mode in ArticleItem:', err));
 }
 
 onMounted(() => {
   // Load settings immediately when component mounts
-  loadCompactModeSettings();
+  loadArticleLayoutModeSettings();
 
-  // Listen for compact mode changes
-  handleCompactModeChange = () => {
-    loadCompactModeSettings();
+  // Listen for article layout mode changes
+  handleLayoutModeChange = () => {
+    loadArticleLayoutModeSettings();
   };
 
-  window.addEventListener('compact-mode-changed', handleCompactModeChange);
+  window.addEventListener('article-layout-mode-changed', handleLayoutModeChange);
+  // Keep compatibility with legacy compact mode event
+  window.addEventListener('compact-mode-changed', handleLayoutModeChange);
 });
 
 onUnmounted(() => {
-  if (handleCompactModeChange) {
-    window.removeEventListener('compact-mode-changed', handleCompactModeChange);
+  if (handleLayoutModeChange) {
+    window.removeEventListener('article-layout-mode-changed', handleLayoutModeChange);
+    window.removeEventListener('compact-mode-changed', handleLayoutModeChange);
   }
 });
 
@@ -287,6 +344,7 @@ onUnmounted(() => {
       article.is_read_later ? 'read-later' : '',
       isActive ? 'active' : '',
       compactMode ? 'compact' : '',
+      gridMode ? 'grid' : '',
     ]"
     @click="emit('click')"
     @contextmenu="emit('contextmenu', $event)"
@@ -408,6 +466,10 @@ onUnmounted(() => {
         </div>
       </div>
 
+      <p v-if="gridMode && bodySnippet" class="mt-1.5 text-xs sm:text-sm text-text-secondary line-clamp-3">
+        {{ bodySnippet }}
+      </p>
+
       <!-- Feed source name and time - shown in both normal and compact mode -->
       <div
         class="flex justify-between items-center text-[11px] sm:text-xs text-text-secondary"
@@ -474,6 +536,40 @@ onUnmounted(() => {
 /* Compact mode: reduce padding */
 .article-card.compact {
   @apply py-1 px-2;
+}
+
+.article-card.grid {
+  @apply flex-col gap-2 p-2.5 sm:p-3 border border-border rounded-xl border-l border-l-border bg-bg-secondary shadow-sm;
+}
+
+.article-card.grid.active {
+  @apply border-accent;
+}
+
+.article-card.grid:hover {
+  transform: translateY(-1px);
+}
+
+.article-card.grid .article-thumbnail,
+.article-card.grid .article-thumbnail-placeholder {
+  @apply w-full h-32 sm:h-36;
+}
+
+.article-card.grid .article-thumbnail-placeholder {
+  @apply border-0 rounded-lg bg-bg-tertiary;
+}
+
+.article-card.grid .article-thumbnail {
+  @apply rounded-lg border-0;
+  transition: transform 0.25s ease;
+}
+
+.article-card.grid:hover .article-thumbnail {
+  transform: scale(1.03);
+}
+
+.article-card.grid .article-title {
+  -webkit-line-clamp: 3;
 }
 
 .article-card:hover {
@@ -581,6 +677,12 @@ onUnmounted(() => {
     width: 56px !important;
     height: 42px !important;
   }
+
+   .article-card.grid .article-thumbnail,
+   .article-card.grid .article-thumbnail-placeholder {
+     width: 100% !important;
+     height: 8rem !important;
+   }
 
   /* Smaller title font */
   .article-card .article-title {

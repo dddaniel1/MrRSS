@@ -14,6 +14,7 @@ export interface SettingsData {
   ai_translation_prompt: string;
   ai_usage_limit: string;
   ai_usage_tokens: string;
+  article_layout_mode: string;
   auto_cleanup_enabled: boolean;
   auto_show_all_content: boolean;
   baidu_app_id: string;
