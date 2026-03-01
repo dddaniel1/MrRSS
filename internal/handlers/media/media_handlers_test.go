@@ -190,3 +190,40 @@ func findInString(s, substr string) bool {
 	}
 	return false
 }
+
+func TestNormalizeMediaReferer_HostOverrides(t *testing.T) {
+	testCases := []struct {
+		name     string
+		mediaURL string
+		referer  string
+		expected string
+	}{
+		{
+			name:     "WeChat host forces WeChat referer",
+			mediaURL: "https://mmbiz.qpic.cn/sz_mmbiz_png/xxx/640?wx_fmt=png",
+			referer:  "https://example.com/post",
+			expected: "https://mp.weixin.qq.com/",
+		},
+		{
+			name:     "Weibo host forces Weibo referer",
+			mediaURL: "https://wx1.sinaimg.cn/large/abcdef123456.jpg",
+			referer:  "https://example.com/post",
+			expected: "https://weibo.com/",
+		},
+		{
+			name:     "Normal host keeps original referer",
+			mediaURL: "https://cdn.example.com/image.jpg",
+			referer:  "https://example.com/post",
+			expected: "https://example.com/post",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			actual := normalizeMediaReferer(tc.mediaURL, tc.referer)
+			if actual != tc.expected {
+				t.Fatalf("expected %q, got %q", tc.expected, actual)
+			}
+		})
+	}
+}

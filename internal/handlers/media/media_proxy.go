@@ -49,16 +49,27 @@ func isWeChatImageHost(mediaURL string) bool {
 	return host == "mmbiz.qpic.cn" || strings.HasSuffix(host, ".mmbiz.qpic.cn") || host == "mmbiz.qlogo.cn" || strings.HasSuffix(host, ".mmbiz.qlogo.cn")
 }
 
-// normalizeMediaReferer enforces a WeChat-compatible referer for WeChat image hosts.
-func normalizeMediaReferer(mediaURL, referer string) string {
+// isWeiboImageHost checks whether the media URL points to Weibo image domains.
+func isWeiboImageHost(mediaURL string) bool {
 	parsed, err := url.Parse(mediaURL)
 	if err != nil {
-		return referer
+		return false
+	}
+	if parsed.Host == "" {
+		return false
+	}
+	host := strings.ToLower(parsed.Host)
+	return host == "sinaimg.cn" || strings.HasSuffix(host, ".sinaimg.cn")
+}
+
+// normalizeMediaReferer enforces host-specific referer for protected media hosts.
+func normalizeMediaReferer(mediaURL, referer string) string {
+	if isWeChatImageHost(mediaURL) {
+		return "https://mp.weixin.qq.com/"
 	}
 
-	host := strings.ToLower(parsed.Host)
-	if host == "mmbiz.qpic.cn" || strings.HasSuffix(host, ".mmbiz.qpic.cn") || host == "mmbiz.qlogo.cn" || strings.HasSuffix(host, ".mmbiz.qlogo.cn") {
-		return "https://mp.weixin.qq.com/"
+	if isWeiboImageHost(mediaURL) {
+		return "https://weibo.com/"
 	}
 
 	return referer
