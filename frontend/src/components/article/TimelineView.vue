@@ -245,8 +245,8 @@ async function fetchDetailContent(article: Article) {
       const data = await res.json();
       let content = data.content || '';
       if (mediaCacheEnabled.value && content) {
-        const feedUrl = data.feed_url || article.url;
-        content = proxyImagesInHtml(content, feedUrl);
+        const articleBaseUrl = article.url || data.feed_url;
+        content = proxyImagesInHtml(content, articleBaseUrl);
       }
       detailArticleContent.value = content;
     }

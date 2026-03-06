@@ -146,10 +146,10 @@ export function clearMediaCacheEnabledCache(): void {
 }
 
 /**
- * Process HTML content to proxy image URLs
+ * Process HTML content to proxy media URLs (images, videos, sources)
  * @param html HTML content
  * @param referer Optional referer URL
- * @returns HTML with proxied image URLs
+ * @returns HTML with proxied media URLs
  * @note Unquoted src attributes are supported but must not contain spaces (per HTML spec)
  */
 export function proxyImagesInHtml(html: string, referer?: string): string {
@@ -161,8 +161,15 @@ export function proxyImagesInHtml(html: string, referer?: string): string {
   // This ensures images load immediately without waiting for lazy loading scripts
   processed = convertLazyImages(processed);
 
-  // Then proxy the src attributes
-  processed = proxyImgAttribute(processed, 'src', referer);
+  // Proxy image src attributes
+  processed = proxyElementAttribute(processed, 'img', 'src', referer, true);
+
+  // Proxy video src and poster attributes
+  processed = proxyElementAttribute(processed, 'video', 'src', referer);
+  processed = proxyElementAttribute(processed, 'video', 'poster', referer);
+
+  // Proxy source src attributes (inside video/audio tags)
+  processed = proxyElementAttribute(processed, 'source', 'src', referer);
 
   return processed;
 }
@@ -224,19 +231,30 @@ function convertLazyImages(html: string): string {
 }
 
 /**
- * Proxy a specific img attribute
+ * Proxy a specific attribute on a given HTML element tag
  * @param html HTML content
- * @param attrName Attribute name to proxy (e.g., 'src', 'data-original', 'data-src')
+ * @param tagName HTML tag name to match (e.g., 'img', 'video', 'source')
+ * @param attrName Attribute name to proxy (e.g., 'src', 'poster')
  * @param referer Optional referer URL
+ * @param addReferrerPolicy Whether to add referrerpolicy="no-referrer" (default false, used for img)
  * @returns HTML with proxied attribute
  */
-function proxyImgAttribute(html: string, attrName: string, referer?: string): string {
-  // Enhanced regex to handle img attributes with better pattern matching
+function proxyElementAttribute(
+  html: string,
+  tagName: string,
+  attrName: string,
+  referer?: string,
+  addReferrerPolicy = false
+): string {
+  // Enhanced regex to handle element attributes with better pattern matching
   // Handles double quotes, single quotes, and unquoted values
   // Note: Unquoted values cannot contain spaces per HTML specification
-  const imgRegex = new RegExp(`<img([^>]+)${attrName}\\s*=\\s*(['"]?)([^"'\\s>]+)\\2`, 'gi');
+  const elemRegex = new RegExp(
+    `<${tagName}([^>]+)${attrName}\\s*=\\s*(['"]?)([^"'\\s>]+)\\2`,
+    'gi'
+  );
 
-  return html.replace(imgRegex, (match, _attrs, quote, src) => {
+  return html.replace(elemRegex, (match, _attrs, quote, src) => {
     // CRITICAL FIX: Decode HTML entities before processing the URL
     // HTML attributes contain &amp; which should be decoded to & before URL encoding
     // For example: &amp; becomes &, then gets properly URL-encoded as %26
@@ -257,12 +275,9 @@ function proxyImgAttribute(html: string, attrName: string, referer?: string): st
 
     let result = match.replace(attrRegex, newAttr);
 
-    // CRITICAL FIX: Add referrerpolicy="no-referrer" to prevent browser from sending
+    // For img tags: Add referrerpolicy="no-referrer" to prevent browser from sending
     // Referer headers that might cause the proxy request to fail.
-    // This fixes the issue where images fail to load in article content but work in ImageViewer.
-    if (!result.toLowerCase().includes('referrerpolicy')) {
-      // Append referrerpolicy to the end of the matched string (which is usually the src attribute)
-      // We add a space to ensure separation from following attributes
+    if (addReferrerPolicy && !result.toLowerCase().includes('referrerpolicy')) {
       result = result + ' referrerpolicy="no-referrer"';
     }
 

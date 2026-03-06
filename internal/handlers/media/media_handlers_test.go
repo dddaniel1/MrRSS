@@ -196,6 +196,7 @@ func TestNormalizeMediaReferer_HostOverrides(t *testing.T) {
 		name     string
 		mediaURL string
 		referer  string
+		baseURL  string
 		expected string
 	}{
 		{
@@ -211,16 +212,35 @@ func TestNormalizeMediaReferer_HostOverrides(t *testing.T) {
 			expected: "https://weibo.com/",
 		},
 		{
-			name:     "Normal host keeps original referer",
+			name:     "Normal host uses referer origin",
 			mediaURL: "https://cdn.example.com/image.jpg",
 			referer:  "https://example.com/post",
-			expected: "https://example.com/post",
+			expected: "https://example.com/",
+		},
+		{
+			name:     "RSSHub referer falls back to media site domain",
+			mediaURL: "https://img.zcool.cn/community/abc.png",
+			referer:  "rsshub://zcool/top/design",
+			expected: "https://zcool.cn/",
+		},
+		{
+			name:     "Invalid referer falls back to article site domain",
+			mediaURL: "https://img.cdn.example.net/a/b/c.png",
+			referer:  "rsshub://zcool/top/design",
+			baseURL:  "https://www.zcool.com.cn/work/ZNzUx.html",
+			expected: "https://zcool.com.cn/",
+		},
+		{
+			name:     "Missing referer falls back to media site domain",
+			mediaURL: "https://img.zcool.cn/community/abc.png",
+			referer:  "",
+			expected: "https://zcool.cn/",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			actual := normalizeMediaReferer(tc.mediaURL, tc.referer)
+			actual := normalizeMediaReferer(tc.mediaURL, tc.referer, tc.baseURL)
 			if actual != tc.expected {
 				t.Fatalf("expected %q, got %q", tc.expected, actual)
 			}

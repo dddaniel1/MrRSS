@@ -20,6 +20,7 @@ import (
 	"MrRSS/internal/cache"
 	"MrRSS/internal/handlers/core"
 	"MrRSS/internal/utils"
+	"golang.org/x/net/publicsuffix"
 )
 
 // validateMediaURL validates that the URL is HTTP/HTTPS and properly formatted
@@ -63,7 +64,7 @@ func isWeiboImageHost(mediaURL string) bool {
 }
 
 // normalizeMediaReferer enforces host-specific referer for protected media hosts.
-func normalizeMediaReferer(mediaURL, referer string) string {
+func normalizeMediaReferer(mediaURL, referer, articleBaseURL string) string {
 	if isWeChatImageHost(mediaURL) {
 		return "https://mp.weixin.qq.com/"
 	}
@@ -72,10 +73,55 @@ func normalizeMediaReferer(mediaURL, referer string) string {
 		return "https://weibo.com/"
 	}
 
-	return referer
+	if parsedReferer, err := url.Parse(referer); err == nil && parsedReferer.Host != "" {
+		if parsedReferer.Scheme == "http" || parsedReferer.Scheme == "https" {
+			return (&url.URL{Scheme: parsedReferer.Scheme, Host: parsedReferer.Host, Path: "/"}).String()
+		}
+	}
+
+	if fallbackOrigin := inferSiteOriginFromURL(articleBaseURL); fallbackOrigin != "" {
+		return fallbackOrigin
+	}
+
+	fallbackOrigin := inferSiteOriginFromURL(mediaURL)
+	if fallbackOrigin != "" {
+		return fallbackOrigin
+	}
+
+	parsedMediaURL, err := url.Parse(mediaURL)
+	if err != nil || parsedMediaURL.Host == "" {
+		return referer
+	}
+
+	return (&url.URL{Scheme: parsedMediaURL.Scheme, Host: parsedMediaURL.Host, Path: "/"}).String()
 }
 
-// proxyImagesInHTML replaces image URLs in HTML with proxied versions
+func inferSiteOriginFromURL(rawURL string) string {
+	parsedURL, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+
+	hostname := parsedURL.Hostname()
+	if hostname == "" {
+		return ""
+	}
+
+	siteHost := hostname
+	if registrableDomain, err := publicsuffix.EffectiveTLDPlusOne(hostname); err == nil {
+		siteHost = registrableDomain
+	}
+
+	scheme := parsedURL.Scheme
+	if scheme == "" {
+		scheme = "https"
+	}
+
+	return (&url.URL{Scheme: scheme, Host: siteHost, Path: "/"}).String()
+}
+
+// proxyImagesInHTML replaces media URLs in HTML with proxied versions.
+// It proxies src attributes on img, video, and source tags, and poster attributes on video tags.
 func proxyImagesInHTML(htmlContent, referer string) string {
 	if htmlContent == "" || referer == "" {
 		return htmlContent
@@ -88,18 +134,29 @@ func proxyImagesInHTML(htmlContent, referer string) string {
 		return htmlContent
 	}
 
-	// Use regex to find and replace img src attributes
-	// This handles various formats: src="url", src='url', src=url (unquoted)
-	re := regexp.MustCompile(`<img[^>]*src\s*=\s*(?:['"]\s*)?([^'"\s>]+)(?:\s*['"])?[^>]*>`)
-	htmlContent = re.ReplaceAllStringFunc(htmlContent, func(match string) string {
-		// Extract the src URL from the match
-		re := regexp.MustCompile(`src\s*=\s*(?:['"]\s*)?([^'"\s>]+)(?:\s*['"])?`)
-		srcMatch := re.FindStringSubmatch(match)
-		if len(srcMatch) < 2 {
-			return match // No valid src found, return unchanged
+	// Proxy img src
+	htmlContent = proxyTagAttribute(htmlContent, "img", "src", baseURL, referer)
+	// Proxy video src and poster
+	htmlContent = proxyTagAttribute(htmlContent, "video", "src", baseURL, referer)
+	htmlContent = proxyTagAttribute(htmlContent, "video", "poster", baseURL, referer)
+	// Proxy source src (inside video/audio)
+	htmlContent = proxyTagAttribute(htmlContent, "source", "src", baseURL, referer)
+
+	return htmlContent
+}
+
+// proxyTagAttribute replaces a specific attribute on a specific tag with a proxied version.
+func proxyTagAttribute(htmlContent, tagName, attrName string, baseURL *url.URL, referer string) string {
+	re := regexp.MustCompile(`<` + tagName + `[^>]*` + attrName + `\s*=\s*(?:['"]\s*)?([^'"\s>]+)(?:\s*['"'])?[^>]*>`)
+	attrRe := regexp.MustCompile(attrName + `\s*=\s*(?:['"]\s*)?([^'"\s>]+)(?:\s*['"'])?`)
+
+	return re.ReplaceAllStringFunc(htmlContent, func(match string) string {
+		attrMatch := attrRe.FindStringSubmatch(match)
+		if len(attrMatch) < 2 {
+			return match
 		}
 
-		srcURL := srcMatch[1]
+		srcURL := attrMatch[1]
 
 		// Skip data URLs, blob URLs, and already proxied URLs
 		if strings.HasPrefix(srcURL, "data:") ||
@@ -108,39 +165,30 @@ func proxyImagesInHTML(htmlContent, referer string) string {
 			return match
 		}
 
-		// CRITICAL FIX: Decode HTML entities before processing the URL
-		// HTML attributes contain &amp; which should be decoded to & before URL encoding
-		// For example: ?key=val&amp;other=val becomes ?key=val&other=val
+		// Decode HTML entities before processing
 		srcURL = html.UnescapeString(srcURL)
 
 		// Resolve relative URLs against the referer
-		// Handles: images/photo.jpg, ./img.png, ../assets/image.gif, /static/img.png
 		if !strings.HasPrefix(srcURL, "http://") && !strings.HasPrefix(srcURL, "https://") {
 			parsedURL, err := url.Parse(srcURL)
 			if err != nil {
-				log.Printf("Failed to parse image URL %s: %v", srcURL, err)
+				log.Printf("Failed to parse %s URL %s: %v", tagName, srcURL, err)
 				return match
 			}
 			srcURL = baseURL.ResolveReference(parsedURL).String()
 		}
 
-		// CRITICAL FIX: Use base64 encoding to avoid all URL encoding issues
-		// This prevents double-encoding problems with special characters
-		// Base64 encoding is safe for URLs and doesn't interfere with query parameter parsing
+		// Use base64 encoding to avoid URL encoding issues
 		proxyURL := fmt.Sprintf("/api/media/proxy?url_b64=%s",
 			base64.StdEncoding.EncodeToString([]byte(srcURL)))
 
-		// Add referer if provided (also base64-encoded)
 		if referer != "" {
 			proxyURL += fmt.Sprintf("&referer_b64=%s",
 				base64.StdEncoding.EncodeToString([]byte(referer)))
 		}
 
-		// Replace the src attribute
-		return strings.Replace(match, srcMatch[0], fmt.Sprintf(`src="%s"`, proxyURL), 1)
+		return strings.Replace(match, attrMatch[0], fmt.Sprintf(`%s="%s"`, attrName, proxyURL), 1)
 	})
-
-	return htmlContent
 }
 
 // HandleMediaProxy serves cached media or downloads and caches it
@@ -214,7 +262,25 @@ func HandleMediaProxy(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	referer = normalizeMediaReferer(mediaURL, referer)
+	// Get optional article base URL from query parameter (support both direct and base64-encoded)
+	articleBaseURL := r.URL.Query().Get("baseurl")
+	if articleBaseURL == "" {
+		articleBaseURL = r.URL.Query().Get("base_url")
+	}
+	articleBaseURLBase64 := r.URL.Query().Get("baseurl_b64")
+	if articleBaseURLBase64 == "" {
+		articleBaseURLBase64 = r.URL.Query().Get("base_url_b64")
+	}
+	if articleBaseURLBase64 != "" {
+		decodedBytes, err := base64.StdEncoding.DecodeString(articleBaseURLBase64)
+		if err != nil {
+			log.Printf("Failed to decode base64 article base URL: %v", err)
+		} else {
+			articleBaseURL = string(decodedBytes)
+		}
+	}
+
+	referer = normalizeMediaReferer(mediaURL, referer, articleBaseURL)
 
 	// Try cache first if enabled
 	// Prefer direct proxy for WeChat images to bypass cached anti-hotlink placeholders.

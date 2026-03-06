@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue';
 import { PhPlay, PhYoutubeLogo } from '@phosphor-icons/vue';
 import { useI18n } from 'vue-i18n';
+import { getProxiedMediaUrl } from '@/utils/mediaProxy';
 
 interface Props {
   videoUrl: string;
@@ -26,6 +27,12 @@ const embedUrl = computed(() => {
   const id = getYouTubeId(props.videoUrl);
   if (!id) return props.videoUrl;
   return `https://www.youtube.com/embed/${id}`;
+});
+
+// For non-iframe videos, proxy the URL through the media proxy
+const proxiedVideoUrl = computed(() => {
+  if (isIframe.value) return embedUrl.value;
+  return getProxiedMediaUrl(props.videoUrl);
 });
 
 function onLoad() {
@@ -142,7 +149,7 @@ function getYouTubeId(url: string): string | null {
         ref="iframeRef"
         class="absolute top-0 left-0 w-full h-full bg-black"
         controls
-        :src="embedUrl"
+        :src="proxiedVideoUrl"
         :title="articleTitle"
         @loadeddata="onLoad"
         @error="onError"
