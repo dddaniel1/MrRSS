@@ -23,7 +23,7 @@ export function getProxiedMediaUrl(url: string, referer?: string): string {
   // Unwrap jintiankansha wrapper URLs for better proxy success
   const unwrappedUrl = unwrapJintiankanshaUrl(url);
 
-  // Don't proxy Douban blog images (hotlink protection causes proxy failures)
+  // Don't proxy known problematic hosts (hotlink protection causes proxy failures)
   if (shouldBypassProxy(unwrappedUrl)) {
     return unwrappedUrl;
   }
@@ -62,16 +62,23 @@ export function getProxiedMediaUrl(url: string, referer?: string): string {
   // Build proxy URL with base64-encoded parameters
   let proxyUrl = `/api/media/proxy?url_b64=${urlB64}`;
 
-  // Add referer if provided (also base64-encoded)
+  // Preserve original base URL hint for backend normalization/fallback.
   if (referer) {
     try {
-      const refererB64 = encodeToBase64(referer);
-      proxyUrl += `&referer_b64=${refererB64}`;
+      const baseUrlB64 = encodeToBase64(referer);
+      proxyUrl += `&baseurl_b64=${baseUrlB64}`;
     } catch (error) {
-      console.warn('Failed to base64-encode media referer:', referer, error);
-      return urlToProxy;
+      console.warn('Failed to base64-encode article base URL:', referer, error);
     }
   }
+
+  // Re-check after resolving relative/protocol-relative URLs.
+  // Some feeds use URLs like //cdn.pingwest.com/... which cannot be matched before resolution.
+  if (shouldBypassProxy(urlToProxy)) {
+    return urlToProxy;
+  }
+
+  // Referer is normalized on backend from baseurl/media host.
 
   return proxyUrl;
 }
@@ -82,7 +89,9 @@ function shouldBypassProxy(url: string): boolean {
     return (
       hostname === '500px.me' ||
       hostname.endsWith('.500px.me') ||
-      hostname.endsWith('500px.com')|| hostname.includes("blog.douban.com")
+      hostname.endsWith('500px.com') ||
+      hostname.includes('blog.douban.com') ||
+      hostname === 'cdn.pingwest.com'
     );
   } catch {
     return false;
@@ -225,8 +234,37 @@ function convertLazyImages(html: string): string {
       return newMatch;
     }
 
-    // No src attribute, add one with the lazy src (this shouldn't happen with valid HTML)
-    return match;
+    // No src attribute: inject src from lazy-loaded attribute.
+    // This is common in full-article pages where only data-src is present.
+    const effectiveQuote = quote || '"';
+    const newSrc = ` src=${effectiveQuote}${lazySrc}${effectiveQuote}`;
+
+    // Insert src before closing tag
+    let newMatch = match.replace(/\s*\/?>$/, (closing) => `${newSrc}${closing}`);
+
+    // Remove lazy loading class if present
+    newMatch = newMatch.replace(
+      /\sclass\s*=\s*(['"]?)([^"'\s>]*\blazy\b[^"'\s>]*)\1/i,
+      (_classMatch, classQuote, classValue) => {
+        const newClassValue = classValue.replace(/\blazy\b/g, '').trim();
+        if (newClassValue) {
+          return ` class=${classQuote}${newClassValue}${classQuote}`;
+        }
+        return '';
+      }
+    );
+
+    // Remove original lazy attribute now that src is set
+    let removeRegex: RegExp;
+    if (quote) {
+      const quoteChar = quote === '"' ? '"' : "'";
+      removeRegex = new RegExp(`${lazyAttr}=${quoteChar}[^${quoteChar}]+${quoteChar}`, 'gi');
+    } else {
+      removeRegex = new RegExp(`${lazyAttr}=[^\\s>]+`, 'gi');
+    }
+    newMatch = newMatch.replace(removeRegex, '');
+
+    return newMatch;
   });
 }
 
@@ -261,8 +299,12 @@ function proxyElementAttribute(
     const decodedSrc = decodeHTMLEntities(src);
     const proxiedUrl = getProxiedMediaUrl(decodedSrc, referer);
 
-    // If proxying failed or returned the same URL, keep original
+    // If proxying failed or returned the same URL, keep original URL.
+    // But still inject referrerpolicy for direct image URLs to avoid anti-hotlink blocks.
     if (!proxiedUrl || proxiedUrl === decodedSrc) {
+      if (addReferrerPolicy && !match.toLowerCase().includes('referrerpolicy')) {
+        return `${match} referrerpolicy="no-referrer"`;
+      }
       return match;
     }
 

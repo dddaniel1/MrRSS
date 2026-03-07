@@ -7,6 +7,7 @@ import { getProxiedMediaUrl } from '@/utils/mediaProxy';
 interface Props {
   videoUrl: string;
   articleTitle: string;
+  articleUrl?: string;
 }
 
 const props = defineProps<Props>();
@@ -32,7 +33,7 @@ const embedUrl = computed(() => {
 // For non-iframe videos, proxy the URL through the media proxy
 const proxiedVideoUrl = computed(() => {
   if (isIframe.value) return embedUrl.value;
-  return getProxiedMediaUrl(props.videoUrl);
+  return getProxiedMediaUrl(props.videoUrl, props.articleUrl);
 });
 
 function onLoad() {

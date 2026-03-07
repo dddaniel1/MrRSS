@@ -407,9 +407,8 @@ async function fetchFullArticle(showErrors: boolean = true) {
       // Proxy images if media cache is enabled
       const cacheEnabled = await isMediaCacheEnabled();
       if (cacheEnabled && content) {
-        // Use feed URL as referer for anti-hotlinking (more reliable than article URL)
-        const feedUrl = data.feed_url || props.article.url;
-        content = proxyImagesInHtml(content, feedUrl);
+        const articleBaseUrl = props.article.url || data.feed_url;
+        content = proxyImagesInHtml(content, articleBaseUrl);
       }
 
       fullArticleContent.value = content;

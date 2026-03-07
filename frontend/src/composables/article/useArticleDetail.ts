@@ -284,9 +284,8 @@ export function useArticleDetail() {
         // Proxy images if media cache is enabled
         const cacheEnabled = await isMediaCacheEnabled();
         if (cacheEnabled && content) {
-          // Use feed URL as referer for anti-hotlinking (more reliable than article URL)
-          const feedUrl = data.feed_url || article.value.url;
-          content = proxyImagesInHtml(content, feedUrl);
+          const articleBaseUrl = article.value.url || data.feed_url;
+          content = proxyImagesInHtml(content, articleBaseUrl);
         }
 
         articleContent.value = content;

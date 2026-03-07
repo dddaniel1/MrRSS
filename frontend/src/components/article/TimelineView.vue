@@ -54,11 +54,12 @@ const sortedArticles = computed(() =>
   })
 );
 
-function getProxyImageUrl(articleId: number, imageUrl: string): string {
+function getProxyImageUrl(article: Article, imageUrl: string): string {
   if (!imageUrl) return '';
-  const feedUrl = feedUrlCache.value.get(articleId);
+  const fallbackFeedUrl = feedUrlCache.value.get(article.id);
+  const referer = article.url || fallbackFeedUrl;
   const proxied = mediaCacheEnabled.value
-    ? getProxiedMediaUrl(imageUrl, feedUrl)
+    ? getProxiedMediaUrl(imageUrl, referer)
     : imageUrl;
   return imageCache.getImageUrl(proxied);
 }
@@ -563,7 +564,7 @@ onUnmounted(() => {
                 <!-- 1 image: full width -->
                 <template v-if="getDisplayImages(article).length === 1">
                   <img
-                    :src="getProxyImageUrl(article.id, getDisplayImages(article)[0])"
+                    :src="getProxyImageUrl(article, getDisplayImages(article)[0])"
                     :alt="article.title"
                     class="w-full max-h-[300px] object-contain block bg-bg-secondary"
                     loading="lazy"
@@ -578,7 +579,7 @@ onUnmounted(() => {
                     class="relative overflow-hidden"
                   >
                     <img
-                      :src="getProxyImageUrl(article.id, img)"
+                      :src="getProxyImageUrl(article, img)"
                       :alt="`${article.title} - ${idx + 1}`"
                       class="object-contain w-full h-full block bg-bg-secondary"
                       loading="lazy"

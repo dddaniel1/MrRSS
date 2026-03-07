@@ -335,6 +335,7 @@ onUnmounted(() => {
             v-if="selectedArticle.video_url"
             :video-url="selectedArticle.video_url"
             :article-title="selectedArticle.title"
+            :article-url="selectedArticle.url"
           />
         </div>
 
