@@ -27,6 +27,14 @@ type Defaults struct {
 	AITranslationPrompt string          `json:"ai_translation_prompt"`
 	AIUsageLimit string                 `json:"ai_usage_limit"`
 	AIUsageTokens string                `json:"ai_usage_tokens"`
+	AlipanBackupFilename string         `json:"alipan_backup_filename"`
+	AlipanBackupFolder string           `json:"alipan_backup_folder"`
+	AlipanClientId string               `json:"alipan_client_id"`
+	AlipanClientSecret string           `json:"alipan_client_secret"`
+	AlipanEnabled bool                  `json:"alipan_enabled"`
+	AlipanLastBackupTime string         `json:"alipan_last_backup_time"`
+	AlipanLastRestoreTime string        `json:"alipan_last_restore_time"`
+	AlipanRefreshToken string           `json:"alipan_refresh_token"`
 	ArticleLayoutMode string            `json:"article_layout_mode"`
 	AutoCleanupEnabled bool             `json:"auto_cleanup_enabled"`
 	AutoShowAllContent bool             `json:"auto_show_all_content"`
@@ -147,6 +155,22 @@ func GetString(key string) string {
 		return defaults.AIUsageLimit
 	case "ai_usage_tokens":
 		return defaults.AIUsageTokens
+	case "alipan_backup_filename":
+		return defaults.AlipanBackupFilename
+	case "alipan_backup_folder":
+		return defaults.AlipanBackupFolder
+	case "alipan_client_id":
+		return defaults.AlipanClientId
+	case "alipan_client_secret":
+		return defaults.AlipanClientSecret
+	case "alipan_enabled":
+		return strconv.FormatBool(defaults.AlipanEnabled)
+	case "alipan_last_backup_time":
+		return defaults.AlipanLastBackupTime
+	case "alipan_last_restore_time":
+		return defaults.AlipanLastRestoreTime
+	case "alipan_refresh_token":
+		return defaults.AlipanRefreshToken
 	case "article_layout_mode":
 		return defaults.ArticleLayoutMode
 	case "auto_cleanup_enabled":

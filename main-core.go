@@ -21,6 +21,7 @@ import (
 	"MrRSS/internal/database"
 	"MrRSS/internal/feed"
 	aihandlers "MrRSS/internal/handlers/ai"
+	alipanHandler "MrRSS/internal/handlers/alipan"
 	article "MrRSS/internal/handlers/article"
 	browser "MrRSS/internal/handlers/browser"
 	chat "MrRSS/internal/handlers/chat"
@@ -267,6 +268,12 @@ func main() {
 	apiMux.HandleFunc("/api/freshrss/sync", func(w http.ResponseWriter, r *http.Request) { freshrssHandler.HandleSync(h, w, r) })
 	apiMux.HandleFunc("/api/freshrss/sync-feed", func(w http.ResponseWriter, r *http.Request) { freshrssHandler.HandleSyncFeed(h, w, r) })
 	apiMux.HandleFunc("/api/freshrss/status", func(w http.ResponseWriter, r *http.Request) { freshrssHandler.HandleSyncStatus(h, w, r) })
+	apiMux.HandleFunc("/api/alipan/oauth/status", func(w http.ResponseWriter, r *http.Request) { alipanHandler.HandleOAuthStatus(h, w, r) })
+	apiMux.HandleFunc("/api/alipan/oauth/start", func(w http.ResponseWriter, r *http.Request) { alipanHandler.HandleOAuthStart(h, w, r) })
+	apiMux.HandleFunc("/api/alipan/oauth/callback", func(w http.ResponseWriter, r *http.Request) { alipanHandler.HandleOAuthCallback(h, w, r) })
+	apiMux.HandleFunc("/api/alipan/oauth/disconnect", func(w http.ResponseWriter, r *http.Request) { alipanHandler.HandleOAuthDisconnect(h, w, r) })
+	apiMux.HandleFunc("/api/alipan/backup", func(w http.ResponseWriter, r *http.Request) { alipanHandler.HandleBackup(h, w, r) })
+	apiMux.HandleFunc("/api/alipan/restore", func(w http.ResponseWriter, r *http.Request) { alipanHandler.HandleRestore(h, w, r) })
 	// RSSHub routes
 	apiMux.HandleFunc("/api/rsshub/add", func(w http.ResponseWriter, r *http.Request) { rsshubHandler.HandleAddFeed(h, w, r) })
 	apiMux.HandleFunc("/api/rsshub/test-connection", func(w http.ResponseWriter, r *http.Request) { rsshubHandler.HandleTestConnection(h, w, r) })

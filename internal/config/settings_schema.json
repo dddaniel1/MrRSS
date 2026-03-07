@@ -424,6 +424,62 @@
       "encrypted": false,
       "frontend_key": "obsidianVaultPath"
     },
+    "alipan_enabled": {
+      "type": "bool",
+      "default": false,
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "alipanEnabled"
+    },
+    "alipan_client_id": {
+      "type": "string",
+      "default": "",
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "alipanClientId"
+    },
+    "alipan_client_secret": {
+      "type": "string",
+      "default": "",
+      "category": "integrations",
+      "encrypted": true,
+      "frontend_key": "alipanClientSecret"
+    },
+    "alipan_refresh_token": {
+      "type": "string",
+      "default": "",
+      "category": "integrations",
+      "encrypted": true,
+      "frontend_key": "alipanRefreshToken"
+    },
+    "alipan_backup_folder": {
+      "type": "string",
+      "default": "MrRSS",
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "alipanBackupFolder"
+    },
+    "alipan_backup_filename": {
+      "type": "string",
+      "default": "subscriptions.opml",
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "alipanBackupFilename"
+    },
+    "alipan_last_backup_time": {
+      "type": "string",
+      "default": "",
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "alipanLastBackupTime"
+    },
+    "alipan_last_restore_time": {
+      "type": "string",
+      "default": "",
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "alipanLastRestoreTime"
+    },
     "window_x": {
       "type": "string",
       "default": "0",

@@ -14,6 +14,14 @@ export interface SettingsData {
   ai_translation_prompt: string;
   ai_usage_limit: string;
   ai_usage_tokens: string;
+  alipan_backup_filename: string;
+  alipan_backup_folder: string;
+  alipan_client_id: string;
+  alipan_client_secret: string;
+  alipan_enabled: boolean;
+  alipan_last_backup_time: string;
+  alipan_last_restore_time: string;
+  alipan_refresh_token: string;
   article_layout_mode: string;
   auto_cleanup_enabled: boolean;
   auto_show_all_content: boolean;

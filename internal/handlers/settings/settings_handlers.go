@@ -56,6 +56,14 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		aiTranslationPrompt := safeGetSetting(h, "ai_translation_prompt")
 		aiUsageLimit := safeGetSetting(h, "ai_usage_limit")
 		aiUsageTokens := safeGetSetting(h, "ai_usage_tokens")
+		alipanBackupFilename := safeGetSetting(h, "alipan_backup_filename")
+		alipanBackupFolder := safeGetSetting(h, "alipan_backup_folder")
+		alipanClientId := safeGetSetting(h, "alipan_client_id")
+		alipanClientSecret := safeGetEncryptedSetting(h, "alipan_client_secret")
+		alipanEnabled := safeGetSetting(h, "alipan_enabled")
+		alipanLastBackupTime := safeGetSetting(h, "alipan_last_backup_time")
+		alipanLastRestoreTime := safeGetSetting(h, "alipan_last_restore_time")
+		alipanRefreshToken := safeGetEncryptedSetting(h, "alipan_refresh_token")
 		articleLayoutMode := safeGetSetting(h, "article_layout_mode")
 		autoCleanupEnabled := safeGetSetting(h, "auto_cleanup_enabled")
 		autoShowAllContent := safeGetSetting(h, "auto_show_all_content")
@@ -150,6 +158,14 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 			"ai_translation_prompt": aiTranslationPrompt,
 			"ai_usage_limit": aiUsageLimit,
 			"ai_usage_tokens": aiUsageTokens,
+			"alipan_backup_filename": alipanBackupFilename,
+			"alipan_backup_folder": alipanBackupFolder,
+			"alipan_client_id": alipanClientId,
+			"alipan_client_secret": alipanClientSecret,
+			"alipan_enabled": alipanEnabled,
+			"alipan_last_backup_time": alipanLastBackupTime,
+			"alipan_last_restore_time": alipanLastRestoreTime,
+			"alipan_refresh_token": alipanRefreshToken,
 			"article_layout_mode": articleLayoutMode,
 			"auto_cleanup_enabled": autoCleanupEnabled,
 			"auto_show_all_content": autoShowAllContent,
@@ -246,6 +262,14 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		AITranslationPrompt           string `json:"ai_translation_prompt"`
 		AIUsageLimit                  string `json:"ai_usage_limit"`
 		AIUsageTokens                 string `json:"ai_usage_tokens"`
+		AlipanBackupFilename          string `json:"alipan_backup_filename"`
+		AlipanBackupFolder            string `json:"alipan_backup_folder"`
+		AlipanClientId                string `json:"alipan_client_id"`
+		AlipanClientSecret            string `json:"alipan_client_secret"`
+		AlipanEnabled                 string `json:"alipan_enabled"`
+		AlipanLastBackupTime          string `json:"alipan_last_backup_time"`
+		AlipanLastRestoreTime         string `json:"alipan_last_restore_time"`
+		AlipanRefreshToken            string `json:"alipan_refresh_token"`
 		ArticleLayoutMode             string `json:"article_layout_mode"`
 		AutoCleanupEnabled            string `json:"auto_cleanup_enabled"`
 		AutoShowAllContent            string `json:"auto_show_all_content"`
@@ -371,6 +395,42 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 
 		if req.AIUsageTokens != "" {
 			h.DB.SetSetting("ai_usage_tokens", req.AIUsageTokens)
+		}
+
+		if req.AlipanBackupFilename != "" {
+			h.DB.SetSetting("alipan_backup_filename", req.AlipanBackupFilename)
+		}
+
+		if req.AlipanBackupFolder != "" {
+			h.DB.SetSetting("alipan_backup_folder", req.AlipanBackupFolder)
+		}
+
+		if req.AlipanClientId != "" {
+			h.DB.SetSetting("alipan_client_id", req.AlipanClientId)
+		}
+
+		if err := h.DB.SetEncryptedSetting("alipan_client_secret", req.AlipanClientSecret); err != nil {
+			log.Printf("Failed to save alipan_client_secret: %v", err)
+			http.Error(w, "Failed to save alipan_client_secret", http.StatusInternalServerError)
+			return
+		}
+
+		if req.AlipanEnabled != "" {
+			h.DB.SetSetting("alipan_enabled", req.AlipanEnabled)
+		}
+
+		if req.AlipanLastBackupTime != "" {
+			h.DB.SetSetting("alipan_last_backup_time", req.AlipanLastBackupTime)
+		}
+
+		if req.AlipanLastRestoreTime != "" {
+			h.DB.SetSetting("alipan_last_restore_time", req.AlipanLastRestoreTime)
+		}
+
+		if err := h.DB.SetEncryptedSetting("alipan_refresh_token", req.AlipanRefreshToken); err != nil {
+			log.Printf("Failed to save alipan_refresh_token: %v", err)
+			http.Error(w, "Failed to save alipan_refresh_token", http.StatusInternalServerError)
+			return
 		}
 
 		if req.ArticleLayoutMode != "" {
@@ -730,6 +790,14 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		aiTranslationPrompt := safeGetSetting(h, "ai_translation_prompt")
 		aiUsageLimit := safeGetSetting(h, "ai_usage_limit")
 		aiUsageTokens := safeGetSetting(h, "ai_usage_tokens")
+		alipanBackupFilename := safeGetSetting(h, "alipan_backup_filename")
+		alipanBackupFolder := safeGetSetting(h, "alipan_backup_folder")
+		alipanClientId := safeGetSetting(h, "alipan_client_id")
+		alipanClientSecret := safeGetEncryptedSetting(h, "alipan_client_secret")
+		alipanEnabled := safeGetSetting(h, "alipan_enabled")
+		alipanLastBackupTime := safeGetSetting(h, "alipan_last_backup_time")
+		alipanLastRestoreTime := safeGetSetting(h, "alipan_last_restore_time")
+		alipanRefreshToken := safeGetEncryptedSetting(h, "alipan_refresh_token")
 		articleLayoutMode := safeGetSetting(h, "article_layout_mode")
 		autoCleanupEnabled := safeGetSetting(h, "auto_cleanup_enabled")
 		autoShowAllContent := safeGetSetting(h, "auto_show_all_content")
@@ -824,6 +892,14 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 			"ai_translation_prompt": aiTranslationPrompt,
 			"ai_usage_limit": aiUsageLimit,
 			"ai_usage_tokens": aiUsageTokens,
+			"alipan_backup_filename": alipanBackupFilename,
+			"alipan_backup_folder": alipanBackupFolder,
+			"alipan_client_id": alipanClientId,
+			"alipan_client_secret": alipanClientSecret,
+			"alipan_enabled": alipanEnabled,
+			"alipan_last_backup_time": alipanLastBackupTime,
+			"alipan_last_restore_time": alipanLastRestoreTime,
+			"alipan_refresh_token": alipanRefreshToken,
 			"article_layout_mode": articleLayoutMode,
 			"auto_cleanup_enabled": autoCleanupEnabled,
 			"auto_show_all_content": autoShowAllContent,
