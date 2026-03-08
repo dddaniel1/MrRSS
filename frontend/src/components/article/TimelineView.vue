@@ -14,7 +14,6 @@ import {
   PhArrowLeft,
   PhBookmarkSimple,
   PhTranslate,
-  PhSpinnerGap,
   PhShareNetwork,
 } from '@phosphor-icons/vue';
 import { openInBrowser } from '@/utils/browser';
@@ -28,10 +27,6 @@ import ImageViewer from '../common/ImageViewer.vue';
 const store = useAppStore();
 const { t, locale } = useI18n();
 const { settings, fetchSettings } = useSettings();
-
-interface ArticleContentExposed {
-  manualTranslateOriginal: () => Promise<void>;
-}
 
 interface Props {
   isSidebarOpen?: boolean;
@@ -274,35 +269,11 @@ const detailArticleContent = ref('');
 const isLoadingDetailContent = ref(false);
 const detailShowContent = ref(true);
 const detailShowTranslations = ref(true);
-const isTranslatingOriginal = ref(false);
 const imageViewerSrc = ref<string | null>(null);
 const imageViewerAlt = ref('');
 const imageViewerImages = ref<string[]>([]);
 const imageViewerInitialIndex = ref(0);
 const detailContainerRef = ref<HTMLElement | null>(null);
-const articleContentRef = ref<ArticleContentExposed | null>(null);
-
-function getChineseCharRatio(text: string): number {
-  if (!text) return 0;
-  const stripped = text.replace(/\s+/g, '');
-  if (!stripped) return 0;
-  const chineseChars = (stripped.match(/[\u3400-\u9FFF]/g) || []).length;
-  return chineseChars / stripped.length;
-}
-
-const showTranslateOriginalButton = computed(() => {
-  if (!selectedArticle.value) return false;
-
-  const title = selectedArticle.value.translated_title || selectedArticle.value.title || '';
-  const preferredLocale = locale.value || 'en-US';
-  const articleLooksChinese = getChineseCharRatio(title) >= 0.2;
-
-  if (preferredLocale.startsWith('zh')) {
-    return !articleLooksChinese;
-  }
-
-  return articleLooksChinese;
-});
 
 async function fetchDetailContent(article: Article) {
   isLoadingDetailContent.value = true;
@@ -345,7 +316,6 @@ function closeDetail() {
   isLoadingDetailContent.value = false;
   detailShowContent.value = true;
   detailShowTranslations.value = true;
-  isTranslatingOriginal.value = false;
   imageViewerSrc.value = null;
   imageViewerAlt.value = '';
   imageViewerImages.value = [];
@@ -361,29 +331,6 @@ function detailToggleContentView() {
 
 function detailToggleTranslations() {
   detailShowTranslations.value = !detailShowTranslations.value;
-}
-
-async function detailTranslateOriginal() {
-  if (!selectedArticle.value || isTranslatingOriginal.value) return;
-
-  isTranslatingOriginal.value = true;
-  try {
-    if (!detailShowContent.value) {
-      detailShowContent.value = true;
-      await nextTick();
-    }
-
-    if (!detailArticleContent.value && !isLoadingDetailContent.value) {
-      await fetchDetailContent(selectedArticle.value);
-      await nextTick();
-    }
-
-    if (articleContentRef.value) {
-      await articleContentRef.value.manualTranslateOriginal();
-    }
-  } finally {
-    isTranslatingOriginal.value = false;
-  }
 }
 
 function handleRetryLoadContent() {
@@ -874,16 +821,6 @@ onUnmounted(() => {
               <PhTranslate :size="18" :weight="detailShowTranslations ? 'fill' : 'regular'" />
             </button>
             <button
-              v-if="showTranslateOriginalButton"
-              class="timeline-action-btn"
-              :title="t('article.action.translateOriginal')"
-              :disabled="isTranslatingOriginal"
-              @click="detailTranslateOriginal"
-            >
-              <PhSpinnerGap v-if="isTranslatingOriginal" :size="18" class="animate-spin" />
-              <PhTranslate v-else :size="18" />
-            </button>
-            <button
               class="timeline-action-btn"
               :class="{ 'text-accent': !selectedArticle.is_read }"
               :title="selectedArticle.is_read ? t('article.action.markAsUnread') : t('article.action.markAsRead')"
@@ -936,7 +873,6 @@ onUnmounted(() => {
           ></iframe>
           <ArticleContent
             v-else
-            ref="articleContentRef"
             :article="selectedArticle"
             :article-content="detailArticleContent"
             :is-loading-content="isLoadingDetailContent"
