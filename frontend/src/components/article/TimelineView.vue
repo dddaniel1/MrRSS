@@ -7,21 +7,31 @@ import {
   PhHeart,
   PhList,
   PhGlobe,
+  PhArticle,
   PhEnvelope,
   PhEnvelopeOpen,
   PhTwitterLogo,
   PhArrowLeft,
   PhBookmarkSimple,
+  PhTranslate,
+  PhSpinnerGap,
+  PhShareNetwork,
 } from '@phosphor-icons/vue';
 import { openInBrowser } from '@/utils/browser';
 import { getProxiedMediaUrl, isMediaCacheEnabled, proxyImagesInHtml } from '@/utils/mediaProxy';
 import { formatDate as formatDateUtil } from '@/utils/date';
 import { imageCache } from '@/utils/imageCache';
+import { useSettings } from '@/composables/core/useSettings';
 import ArticleContent from './ArticleContent.vue';
 import ImageViewer from '../common/ImageViewer.vue';
 
 const store = useAppStore();
 const { t, locale } = useI18n();
+const { settings, fetchSettings } = useSettings();
+
+interface ArticleContentExposed {
+  manualTranslateOriginal: () => Promise<void>;
+}
 
 interface Props {
   isSidebarOpen?: boolean;
@@ -262,11 +272,37 @@ function openOriginal(article: Article, event?: Event) {
 const selectedArticle = ref<Article | null>(null);
 const detailArticleContent = ref('');
 const isLoadingDetailContent = ref(false);
+const detailShowContent = ref(true);
+const detailShowTranslations = ref(true);
+const isTranslatingOriginal = ref(false);
 const imageViewerSrc = ref<string | null>(null);
 const imageViewerAlt = ref('');
 const imageViewerImages = ref<string[]>([]);
 const imageViewerInitialIndex = ref(0);
 const detailContainerRef = ref<HTMLElement | null>(null);
+const articleContentRef = ref<ArticleContentExposed | null>(null);
+
+function getChineseCharRatio(text: string): number {
+  if (!text) return 0;
+  const stripped = text.replace(/\s+/g, '');
+  if (!stripped) return 0;
+  const chineseChars = (stripped.match(/[\u3400-\u9FFF]/g) || []).length;
+  return chineseChars / stripped.length;
+}
+
+const showTranslateOriginalButton = computed(() => {
+  if (!selectedArticle.value) return false;
+
+  const title = selectedArticle.value.translated_title || selectedArticle.value.title || '';
+  const preferredLocale = locale.value || 'en-US';
+  const articleLooksChinese = getChineseCharRatio(title) >= 0.2;
+
+  if (preferredLocale.startsWith('zh')) {
+    return !articleLooksChinese;
+  }
+
+  return articleLooksChinese;
+});
 
 async function fetchDetailContent(article: Article) {
   isLoadingDetailContent.value = true;
@@ -307,10 +343,53 @@ function closeDetail() {
   selectedArticle.value = null;
   detailArticleContent.value = '';
   isLoadingDetailContent.value = false;
+  detailShowContent.value = true;
+  detailShowTranslations.value = true;
+  isTranslatingOriginal.value = false;
   imageViewerSrc.value = null;
   imageViewerAlt.value = '';
   imageViewerImages.value = [];
   imageViewerInitialIndex.value = 0;
+}
+
+function detailToggleContentView() {
+  detailShowContent.value = !detailShowContent.value;
+  if (detailShowContent.value && selectedArticle.value && !detailArticleContent.value && !isLoadingDetailContent.value) {
+    fetchDetailContent(selectedArticle.value);
+  }
+}
+
+function detailToggleTranslations() {
+  detailShowTranslations.value = !detailShowTranslations.value;
+}
+
+async function detailTranslateOriginal() {
+  if (!selectedArticle.value || isTranslatingOriginal.value) return;
+
+  isTranslatingOriginal.value = true;
+  try {
+    if (!detailShowContent.value) {
+      detailShowContent.value = true;
+      await nextTick();
+    }
+
+    if (!detailArticleContent.value && !isLoadingDetailContent.value) {
+      await fetchDetailContent(selectedArticle.value);
+      await nextTick();
+    }
+
+    if (articleContentRef.value) {
+      await articleContentRef.value.manualTranslateOriginal();
+    }
+  } finally {
+    isTranslatingOriginal.value = false;
+  }
+}
+
+function handleRetryLoadContent() {
+  if (selectedArticle.value) {
+    fetchDetailContent(selectedArticle.value);
+  }
 }
 
 function closeImageViewer() {
@@ -448,8 +527,35 @@ async function detailToggleReadLater() {
   }
 }
 
-function detailOpenOriginal() {
-  if (selectedArticle.value) openInBrowser(selectedArticle.value.url);
+async function detailExportToObsidian() {
+  if (!selectedArticle.value) return;
+
+  try {
+    window.showToast(t('setting.plugins.obsidian.exporting'), 'info');
+
+    const response = await fetch('/api/articles/export/obsidian', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        article_id: selectedArticle.value.id,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(error);
+    }
+
+    const data = await response.json();
+    const message = data.message || t('setting.plugins.obsidian.exported');
+    const filePath = data.file_path ? ` (${data.file_path})` : '';
+    window.showToast(message + filePath, 'success');
+  } catch (error) {
+    console.error('Failed to export to Obsidian:', error);
+    const message =
+      error instanceof Error ? error.message : t('setting.plugins.obsidian.exportFailed');
+    window.showToast(message, 'error');
+  }
 }
 
 watch(feedId, async () => {
@@ -485,6 +591,11 @@ watch(
 
 onMounted(async () => {
   mediaCacheEnabled.value = await isMediaCacheEnabled();
+  try {
+    await fetchSettings();
+  } catch (e) {
+    console.error('Failed to load settings:', e);
+  }
   fetchArticles();
   if (containerRef.value) {
     containerRef.value.addEventListener('scroll', handleScroll);
@@ -748,6 +859,32 @@ onUnmounted(() => {
           <div class="flex items-center gap-1">
             <button
               class="timeline-action-btn"
+              :title="detailShowContent ? t('article.action.viewOriginal') : t('article.action.viewContent')"
+              @click="detailToggleContentView"
+            >
+              <PhGlobe v-if="detailShowContent" :size="18" />
+              <PhArticle v-else :size="18" />
+            </button>
+            <button
+              v-if="detailShowContent && settings.translation_enabled && !settings.translation_only_mode"
+              class="timeline-action-btn"
+              :title="detailShowTranslations ? t('setting.reading.hideTranslations') : t('setting.reading.showTranslations')"
+              @click="detailToggleTranslations"
+            >
+              <PhTranslate :size="18" :weight="detailShowTranslations ? 'fill' : 'regular'" />
+            </button>
+            <button
+              v-if="showTranslateOriginalButton"
+              class="timeline-action-btn"
+              :title="t('article.action.translateOriginal')"
+              :disabled="isTranslatingOriginal"
+              @click="detailTranslateOriginal"
+            >
+              <PhSpinnerGap v-if="isTranslatingOriginal" :size="18" class="animate-spin" />
+              <PhTranslate v-else :size="18" />
+            </button>
+            <button
+              class="timeline-action-btn"
               :class="{ 'text-accent': !selectedArticle.is_read }"
               :title="selectedArticle.is_read ? t('article.action.markAsUnread') : t('article.action.markAsRead')"
               @click="detailToggleRead"
@@ -778,23 +915,35 @@ onUnmounted(() => {
               />
             </button>
             <button
+              v-if="settings.obsidian_enabled"
               class="timeline-action-btn"
-              :title="t('article.action.openInBrowser')"
-              @click="detailOpenOriginal"
+              :title="t('setting.plugins.obsidian.exportTo')"
+              @click="detailExportToObsidian"
             >
-              <PhGlobe :size="18" />
+              <PhShareNetwork :size="18" />
             </button>
           </div>
         </div>
 
         <!-- Detail content -->
         <div ref="detailContainerRef" class="timeline-detail-content flex-1 overflow-y-auto">
+          <iframe
+            v-if="!detailShowContent"
+            :key="selectedArticle.id"
+            :src="`/api/webpage/proxy?url=${encodeURIComponent(selectedArticle.url)}`"
+            class="w-full h-full border-none"
+            sandbox="allow-scripts allow-same-origin allow-popups"
+          ></iframe>
           <ArticleContent
+            v-else
+            ref="articleContentRef"
             :article="selectedArticle"
             :article-content="detailArticleContent"
             :is-loading-content="isLoadingDetailContent"
             :attach-image-event-listeners="attachDetailImageListeners"
-            :show-content="true"
+            :show-translations="detailShowTranslations"
+            :show-content="detailShowContent"
+            @retry-load-content="handleRetryLoadContent"
           />
         </div>
 
