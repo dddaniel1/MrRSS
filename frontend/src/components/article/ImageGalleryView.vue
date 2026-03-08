@@ -37,6 +37,7 @@ const emit = defineEmits<{
 // Constants
 const ITEMS_PER_PAGE = 30;
 const SCROLL_THRESHOLD_PX = 500; // Start loading more items when user is 500px from bottom
+const FIRST_SCREEN_EAGER_IMAGES = 8;
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 5;
 const SCALE_STEP = 0.25;
@@ -63,7 +64,6 @@ const thumbnailStripRef = ref<HTMLElement | null>(null);
 const imageListCache = ref<Map<number, string[]>>(new Map());
 const previewIndexCache = ref<Map<number, number>>(new Map());
 const previewDirectionCache = ref<Map<number, 'next' | 'prev'>>(new Map());
-const previewAspectRatioCache = ref<Map<number, number>>(new Map());
 const feedUrlCache = ref<Map<number, string>>(new Map());
 const sortedArticles = computed(() =>
   [...articles.value].sort((a, b) => {
@@ -87,12 +87,6 @@ function setPreviewDirectionCache(articleId: number, direction: 'next' | 'prev')
   const next = new Map(previewDirectionCache.value);
   next.set(articleId, direction);
   previewDirectionCache.value = next;
-}
-
-function setPreviewAspectRatioCache(articleId: number, ratio: number) {
-  const next = new Map(previewAspectRatioCache.value);
-  next.set(articleId, ratio);
-  previewAspectRatioCache.value = next;
 }
 
 function setFeedUrlCache(articleId: number, feedUrl: string | undefined) {
@@ -221,7 +215,6 @@ async function fetchImages(loadMore = false) {
       imageListCache.value = new Map();
       previewIndexCache.value = new Map();
       previewDirectionCache.value = new Map();
-      previewAspectRatioCache.value = new Map();
     }
     let url = `/api/articles/images?page=${page.value}&limit=${ITEMS_PER_PAGE}`;
     if (feedId.value) {
@@ -299,24 +292,6 @@ function getPreviewTransitionName(article: Article): string {
     ? 'preview-slide-prev'
     : 'preview-slide-next';
 }
-
-function getPreviewAspectRatio(article: Article): string {
-  const ratio = previewAspectRatioCache.value.get(article.id);
-  if (!ratio || !Number.isFinite(ratio)) {
-    return '4 / 3';
-  }
-  return `${ratio}`;
-}
-
-function handlePreviewImageLoad(article: Article, event: Event) {
-  if (previewAspectRatioCache.value.has(article.id)) return;
-  const img = event.target as HTMLImageElement | null;
-  if (!img || !img.naturalWidth || !img.naturalHeight) return;
-  const ratio = img.naturalWidth / img.naturalHeight;
-  if (!Number.isFinite(ratio) || ratio <= 0) return;
-  setPreviewAspectRatioCache(article.id, ratio);
-}
-
 
 async function fetchPreviewImages(article: Article): Promise<string[]> {
   if (imageListCache.value.has(article.id)) {
@@ -958,7 +933,7 @@ onUnmounted(() => {
       <!-- Masonry Grid -->
       <div v-if="articles.length > 0" class="p-4 image-gallery-columns">
         <div
-          v-for="article in sortedArticles"
+          v-for="(article, index) in sortedArticles"
           :key="article.id"
           class="image-gallery-item cursor-pointer group"
           @contextmenu="handleContextMenu($event, article)"
@@ -966,7 +941,6 @@ onUnmounted(() => {
         >
           <div
             class="relative overflow-hidden rounded-lg bg-bg-secondary transition-transform duration-200 hover:scale-[1.02] image-gallery-media"
-            :style="{ aspectRatio: getPreviewAspectRatio(article) }"
           >
             <Transition :name="getPreviewTransitionName(article)" mode="out-in">
               <img
@@ -974,9 +948,9 @@ onUnmounted(() => {
                 :src="getPreviewImage(article)"
                 :alt="article.title"
                 class="w-full h-full object-cover block"
-                loading="lazy"
+                :loading="index < FIRST_SCREEN_EAGER_IMAGES ? 'eager' : 'lazy'"
+                :fetchpriority="index < FIRST_SCREEN_EAGER_IMAGES ? 'high' : 'auto'"
                 :referrerpolicy="getImageReferrerPolicy(article.image_url || '')"
-                @load="handlePreviewImageLoad(article, $event)"
               />
             </Transition>
             <template v-if="getImageCount(article) > 1">
@@ -1395,20 +1369,21 @@ onUnmounted(() => {
 }
 
 .image-gallery-columns {
-  --image-gallery-gap: clamp(12px, 1.6vw, 20px);
-  column-width: clamp(220px, 25vw, 280px);
-  column-gap: var(--image-gallery-gap);
+  --image-gallery-gap: clamp(8px, 1.2vw, 14px);
+  --image-gallery-card-min: clamp(220px, 24vw, 280px);
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--image-gallery-card-min), 1fr));
+  gap: var(--image-gallery-gap);
+  align-items: start;
 }
 
 .image-gallery-item {
-  break-inside: avoid;
-  display: inline-block;
   width: 100%;
-  margin-bottom: var(--image-gallery-gap);
 }
 
 .image-gallery-media {
   width: 100%;
+  aspect-ratio: 4 / 3;
 }
 
 /* Prose content styling */
@@ -1480,5 +1455,12 @@ onUnmounted(() => {
 .preview-slide-prev-enter-from {
   opacity: 0;
   transform: translateX(-10px);
+}
+
+@media (max-width: 767px) {
+  .image-gallery-columns {
+    --image-gallery-gap: 8px;
+    --image-gallery-card-min: 160px;
+  }
 }
 </style>
