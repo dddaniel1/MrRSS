@@ -12,6 +12,7 @@ import {
   PhClockCountdown,
   PhArrowSquareOut,
   PhTranslate,
+  PhSpinnerGap,
   PhShareNetwork,
 } from '@phosphor-icons/vue';
 import type { Article } from '@/types/models';
@@ -31,10 +32,14 @@ interface Props {
   article: Article;
   showContent: boolean;
   showTranslations?: boolean;
+  showTranslateOriginalButton?: boolean;
+  isTranslatingOriginal?: boolean;
 }
 
 withDefaults(defineProps<Props>(), {
   showTranslations: true,
+  showTranslateOriginalButton: false,
+  isTranslatingOriginal: false,
 });
 
 defineEmits<{
@@ -44,6 +49,7 @@ defineEmits<{
   toggleFavorite: [];
   toggleReadLater: [];
   openOriginal: [];
+  translateOriginal: [];
   toggleTranslations: [];
   exportToObsidian: [];
 }>();
@@ -84,6 +90,16 @@ defineEmits<{
           class="sm:w-5 sm:h-5"
           :weight="showTranslations ? 'fill' : 'regular'"
         />
+      </button>
+      <button
+        v-if="showTranslateOriginalButton"
+        class="action-btn"
+        :title="t('article.action.translateOriginal')"
+        :disabled="isTranslatingOriginal"
+        @click="$emit('translateOriginal')"
+      >
+        <PhSpinnerGap v-if="isTranslatingOriginal" :size="18" class="sm:w-5 sm:h-5 animate-spin" />
+        <PhTranslate v-else :size="18" class="sm:w-5 sm:h-5" />
       </button>
       <button
         class="action-btn"

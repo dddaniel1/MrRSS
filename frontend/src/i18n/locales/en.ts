@@ -37,6 +37,7 @@ const en: TranslationMessages = {
       removeFromFavorite: 'Remove from Favorites',
       removeFromFavorites: 'Remove from Favorites',
       removeFromReadLater: 'Remove from Read Later',
+      translateOriginal: 'Translate Original',
       toggleFavoriteStatus: 'Toggle Favorite',
       unhideArticle: 'Unhide Article',
       viewArticle: 'View Article',
@@ -115,6 +116,8 @@ const en: TranslationMessages = {
     },
     translation: {
       aiLimitReached: 'AI usage limit reached. Using free alternatives.',
+      enableTranslationFirst: 'Please enable translation in settings first.',
+      switchToRenderedFirst: 'Please switch to rendered content before translating.',
     },
     videoPlayer: {
       openInYouTube: 'Open in YouTube',

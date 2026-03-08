@@ -726,6 +726,27 @@ async function reattachImageInteractions() {
   props.attachImageEventListeners();
 }
 
+async function manualTranslateOriginal(): Promise<void> {
+  if (!props.article) return;
+
+  if (!translationEnabled.value) {
+    window.showToast(t('article.translation.enableTranslationFirst'), 'warning');
+    return;
+  }
+
+  if (!props.showContent) {
+    window.showToast(t('article.translation.switchToRenderedFirst'), 'warning');
+    return;
+  }
+
+  await translateTitle(props.article);
+  await translateContentParagraphs(displayContent.value);
+}
+
+defineExpose({
+  manualTranslateOriginal,
+});
+
 // Clear text selection when clicking outside the selected content
 function handleContainerClick(event: MouseEvent) {
   const selection = window.getSelection();

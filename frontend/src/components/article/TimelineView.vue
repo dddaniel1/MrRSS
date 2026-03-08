@@ -54,6 +54,37 @@ const sortedArticles = computed(() =>
   })
 );
 
+type TimelineArticle = Article & {
+  description?: string;
+  translated_description?: string;
+  content?: string;
+  translated_content?: string;
+};
+
+function extractPlainText(input?: string): string {
+  if (!input) return '';
+  return input
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getArticleExcerpt(article: Article): string {
+  const timelineArticle = article as TimelineArticle;
+  const source =
+    timelineArticle.translated_description ||
+    timelineArticle.description ||
+    timelineArticle.translated_content ||
+    timelineArticle.content ||
+    '';
+
+  const plainText = extractPlainText(source);
+  if (!plainText) return '';
+
+  const maxLength = 180;
+  return plainText.length > maxLength ? `${plainText.slice(0, maxLength)}...` : plainText;
+}
+
 function getProxyImageUrl(article: Article, imageUrl: string): string {
   if (!imageUrl) return '';
   const fallbackFeedUrl = feedUrlCache.value.get(article.id);
@@ -531,7 +562,7 @@ onUnmounted(() => {
               </div>
 
               <!-- Title -->
-              <div class="mb-2">
+              <div class="mb-1.5">
                 <h3
                   v-if="article.translated_title && article.translated_title !== article.title"
                   class="text-[15px] leading-snug text-text-primary font-semibold"
@@ -548,6 +579,13 @@ onUnmounted(() => {
                   {{ article.title }}
                 </h3>
               </div>
+
+              <p
+                v-if="getArticleExcerpt(article)"
+                class="mb-2.5 text-[14px] leading-relaxed text-text-secondary line-clamp-3"
+              >
+                {{ getArticleExcerpt(article) }}
+              </p>
 
               <!-- Image grid -->
               <div
@@ -778,16 +816,21 @@ onUnmounted(() => {
 @reference "../../style.css";
 
 .timeline-container {
-  max-width: 600px;
+  max-width: 720px;
   width: 100%;
+  padding: 0.75rem;
 }
 
 .timeline-card {
-  @apply px-4 py-3 border-b border-border cursor-pointer transition-colors;
+  @apply px-4 py-3.5 border border-border rounded-2xl cursor-pointer transition-all;
+  margin-bottom: 0.75rem;
+  background: color-mix(in srgb, var(--bg-primary) 88%, white 12%);
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.08);
 }
 
 .timeline-card:hover {
-  @apply bg-bg-tertiary;
+  background: color-mix(in srgb, var(--bg-primary) 82%, white 18%);
+  box-shadow: 0 8px 24px rgb(15 23 42 / 0.12);
 }
 
 .timeline-card--read {
@@ -811,7 +854,7 @@ onUnmounted(() => {
 }
 
 .timeline-actions {
-  max-width: 300px;
+  max-width: 320px;
 }
 
 .timeline-action-btn {
@@ -889,6 +932,7 @@ onUnmounted(() => {
 @media (max-width: 767px) {
   .timeline-container {
     max-width: 100%;
+    padding: 0.5rem;
   }
 
   .timeline-avatar {

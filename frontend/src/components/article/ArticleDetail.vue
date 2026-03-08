@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { PhNewspaper, PhCaretLeft, PhCaretRight } from '@phosphor-icons/vue';
 import { useArticleDetail } from '@/composables/article/useArticleDetail';
+import { useI18n } from 'vue-i18n';
 import ArticleToolbar from './ArticleToolbar.vue';
 import ArticleContent from './ArticleContent.vue';
 import ImageViewer from '../common/ImageViewer.vue';
 import FindInPage from '../common/FindInPage.vue';
 
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, nextTick } from 'vue';
+
+interface ArticleContentExposed {
+  manualTranslateOriginal: () => Promise<void>;
+}
 
 const {
   article,
@@ -36,6 +41,49 @@ const {
 
 const showTranslations = ref(true);
 const showFindInPage = ref(false);
+const isTranslatingOriginal = ref(false);
+const articleContentRef = ref<ArticleContentExposed | null>(null);
+const { locale } = useI18n();
+
+function getChineseCharRatio(text: string): number {
+  if (!text) return 0;
+  const stripped = text.replace(/\s+/g, '');
+  if (!stripped) return 0;
+  const chineseChars = (stripped.match(/[\u3400-\u9FFF]/g) || []).length;
+  return chineseChars / stripped.length;
+}
+
+const showTranslateOriginalButton = computed(() => {
+  if (!article.value) return false;
+
+  const title = article.value.translated_title || article.value.title || '';
+  const preferredLocale = locale.value || 'en-US';
+  const articleLooksChinese = getChineseCharRatio(title) >= 0.2;
+
+  if (preferredLocale.startsWith('zh')) {
+    return !articleLooksChinese;
+  }
+
+  return articleLooksChinese;
+});
+
+async function handleTranslateOriginal() {
+  if (!article.value || isTranslatingOriginal.value) return;
+
+  isTranslatingOriginal.value = true;
+  try {
+    if (!showContent.value) {
+      await toggleContentView();
+      await nextTick();
+    }
+
+    if (articleContentRef.value) {
+      await articleContentRef.value.manualTranslateOriginal();
+    }
+  } finally {
+    isTranslatingOriginal.value = false;
+  }
+}
 
 function toggleTranslations() {
   showTranslations.value = !showTranslations.value;
@@ -96,12 +144,15 @@ onBeforeUnmount(() => {
         :article="article"
         :show-content="showContent"
         :show-translations="showTranslations"
+        :show-translate-original-button="showTranslateOriginalButton"
+        :is-translating-original="isTranslatingOriginal"
         @close="close"
         @toggle-content-view="toggleContentView"
         @toggle-read="toggleRead"
         @toggle-favorite="toggleFavorite"
         @toggle-read-later="toggleReadLater"
         @open-original="openOriginal"
+        @translate-original="handleTranslateOriginal"
         @toggle-translations="toggleTranslations"
         @export-to-obsidian="exportToObsidian"
       />
@@ -119,6 +170,7 @@ onBeforeUnmount(() => {
       <!-- RSS content view -->
       <ArticleContent
         v-else
+        ref="articleContentRef"
         :article="article"
         :article-content="articleContent"
         :is-loading-content="isLoadingContent"

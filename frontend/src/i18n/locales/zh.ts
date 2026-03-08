@@ -37,6 +37,7 @@ const zh: TranslationMessages = {
       removeFromFavorite: '取消收藏',
       removeFromFavorites: '从收藏中移除',
       removeFromReadLater: '从稀后阅读中移除',
+      translateOriginal: '翻译原文',
       toggleFavoriteStatus: '切换收藏',
       unhideArticle: '取消隐藏',
       viewArticle: '查看文章',
@@ -114,6 +115,8 @@ const zh: TranslationMessages = {
     },
     translation: {
       aiLimitReached: 'AI 使用量已达上限，正在使用免费替代方案。',
+      enableTranslationFirst: '请先在设置中启用翻译功能。',
+      switchToRenderedFirst: '请先切换到渲染内容再进行翻译。',
     },
     videoPlayer: {
       openInYouTube: '在 YouTube 中打开',
