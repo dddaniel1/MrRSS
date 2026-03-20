@@ -346,6 +346,25 @@ function closeImageViewer() {
   imageViewerInitialIndex.value = 0;
 }
 
+function openTimelineImageViewer(article: Article, index: number, event?: Event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  const images = getDisplayImages(article)
+    .map((img) => getProxyImageUrl(article, img))
+    .filter((img) => Boolean(img));
+
+  if (images.length === 0) return;
+
+  const imageIndex = Math.max(0, Math.min(index, images.length - 1));
+  imageViewerSrc.value = images[imageIndex];
+  imageViewerAlt.value = `${article.title} - ${imageIndex + 1}`;
+  imageViewerImages.value = images;
+  imageViewerInitialIndex.value = imageIndex;
+}
+
 function attachDetailImageListeners() {
   // Unwrap images from links
   const links = document.querySelectorAll<HTMLAnchorElement>('.timeline-detail-content .prose-content a');
@@ -650,21 +669,26 @@ onUnmounted(() => {
                 v-if="getDisplayImages(article).length > 0"
                 class="mb-2.5 rounded-xl overflow-hidden border border-border"
                 :class="[
-                  getDisplayImages(article).length === 1 ? 'timeline-grid-1' :
-                  getDisplayImages(article).length === 2 ? 'timeline-grid-2' :
-                  getDisplayImages(article).length <= 4 ? 'timeline-grid-sq' :
-                  'timeline-grid-multi'
+                  getDisplayImages(article).length === 1 ? 'timeline-grid-single' :
+                  getDisplayImages(article).length <= 3 ? 'timeline-grid-base' :
+                  getDisplayImages(article).length <= 6 ? 'timeline-grid-double' :
+                  'timeline-grid-triple'
                 ]"
                 @click.stop
               >
                 <!-- 1 image: full width -->
                 <template v-if="getDisplayImages(article).length === 1">
-                  <img
-                    :src="getProxyImageUrl(article, getDisplayImages(article)[0])"
-                    :alt="article.title"
-                    class="w-full max-h-[300px] object-contain block bg-bg-secondary"
-                    loading="lazy"
-                  />
+                  <div
+                    class="w-full cursor-zoom-in bg-bg-secondary"
+                    @click.stop="openTimelineImageViewer(article, 0, $event)"
+                  >
+                    <img
+                      :src="getProxyImageUrl(article, getDisplayImages(article)[0])"
+                      :alt="article.title"
+                      class="w-full max-h-[300px] object-contain block"
+                      loading="lazy"
+                    />
+                  </div>
                 </template>
 
                 <!-- 2+ images: uniform grid -->
@@ -673,18 +697,19 @@ onUnmounted(() => {
                     v-for="(img, idx) in getDisplayImages(article).slice(0, 9)"
                     :key="idx"
                     class="relative overflow-hidden"
+                    @click.stop="openTimelineImageViewer(article, idx, $event)"
                   >
                     <img
                       :src="getProxyImageUrl(article, img)"
                       :alt="`${article.title} - ${idx + 1}`"
-                      class="object-contain w-full h-full block bg-bg-secondary"
+                      class="object-contain w-full h-full block bg-bg-secondary cursor-zoom-in"
                       loading="lazy"
                     />
                     <!-- +N overlay on last cell -->
                     <div
                       v-if="idx === 8 && getDisplayImages(article).length > 9"
                       class="absolute inset-0 bg-black/50 flex items-center justify-center cursor-pointer"
-                      @click.stop="handleCardClick(article)"
+                      @click.stop="openTimelineImageViewer(article, idx, $event)"
                     >
                       <span class="text-white text-xl font-bold">
                         +{{ getDisplayImages(article).length - 9 }}
@@ -883,17 +908,18 @@ onUnmounted(() => {
           />
         </div>
 
-        <!-- Image Viewer Modal -->
-        <ImageViewer
-          v-if="imageViewerSrc"
-          :src="imageViewerSrc"
-          :alt="imageViewerAlt"
-          :images="imageViewerImages"
-          :initial-index="imageViewerInitialIndex"
-          @close="closeImageViewer"
-        />
       </div>
     </Transition>
+
+    <!-- Image Viewer Modal -->
+    <ImageViewer
+      v-if="imageViewerSrc"
+      :src="imageViewerSrc"
+      :alt="imageViewerAlt"
+      :images="imageViewerImages"
+      :initial-index="imageViewerInitialIndex"
+      @close="closeImageViewer"
+    />
   </div>
 </template>
 
@@ -951,31 +977,32 @@ onUnmounted(() => {
 }
 
 /* Image grids — every cell is the same size */
-.timeline-grid-1 {
+.timeline-grid-single {
   /* Single image: container only, img handles sizing */
 }
 
-.timeline-grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
-  height: 200px;
-}
-
-.timeline-grid-sq {
+.timeline-grid-base {
   display: grid;
   grid-template-columns: 1fr 1fr;
   grid-auto-rows: 1fr;
   gap: 2px;
-  height: 260px;
+  height: 180px;
 }
 
-.timeline-grid-multi {
+.timeline-grid-double {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;
   grid-auto-rows: 1fr;
   gap: 2px;
-  height: 390px;
+  height: 360px;
+}
+
+.timeline-grid-triple {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-auto-rows: 1fr;
+  gap: 2px;
+  height: 540px;
 }
 
 /* Detail view small avatar */
@@ -1018,6 +1045,18 @@ onUnmounted(() => {
   .timeline-container {
     max-width: 100%;
     padding: 0.5rem;
+  }
+
+  .timeline-grid-base {
+    height: 150px;
+  }
+
+  .timeline-grid-double {
+    height: 300px;
+  }
+
+  .timeline-grid-triple {
+    height: 450px;
   }
 
   .timeline-avatar {
