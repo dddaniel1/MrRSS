@@ -186,35 +186,129 @@ func (h *Handler) FetchFullArticleContent(url string) (string, error) {
 
 // findMatchingFeedItem finds the best matching feed item for an article using multiple criteria
 func (h *Handler) findMatchingFeedItem(article *models.Article, items []*gofeed.Item) *gofeed.Item {
-	// First pass: exact URL match
+	urlMatches := make([]*gofeed.Item, 0, len(items))
 	for _, item := range items {
-		if utils.URLsMatch(item.Link, article.URL) {
-			return item
+		if h.itemMatchesArticleURL(item, article.URL) {
+			urlMatches = append(urlMatches, item)
 		}
 	}
 
-	// Second pass: URL + title match (for script-based feeds that might have URL variations)
-	for _, item := range items {
-		if utils.URLsMatch(item.Link, article.URL) && h.titlesMatch(item.Title, article.Title) {
-			return item
+	// First pass: URL/GUID + title + published time match (strongest signal)
+	strongMatches := make([]*gofeed.Item, 0, len(urlMatches))
+	for _, item := range urlMatches {
+		if h.titlesMatch(item.Title, article.Title) && h.publishedTimesMatch(item.PublishedParsed, &article.PublishedAt) {
+			strongMatches = append(strongMatches, item)
 		}
 	}
+	if len(strongMatches) == 1 {
+		return strongMatches[0]
+	}
+	if len(strongMatches) > 1 {
+		if item := h.findClosestByPublishedTime(article, strongMatches); item != nil {
+			return item
+		}
+		log.Printf("Ambiguous strong feed item match for article_id=%d, candidates=%d", article.ID, len(strongMatches))
+		return nil
+	}
 
-	// Third pass: title + published time match (fallback for when URLs don't match)
+	// Second pass: URL/GUID + title match (must be unique to avoid wrong writes)
+	titleURLMatches := make([]*gofeed.Item, 0, len(urlMatches))
+	for _, item := range urlMatches {
+		if h.titlesMatch(item.Title, article.Title) {
+			titleURLMatches = append(titleURLMatches, item)
+		}
+	}
+	if len(titleURLMatches) == 1 {
+		return titleURLMatches[0]
+	}
+	if len(titleURLMatches) > 1 {
+		if item := h.findClosestByPublishedTime(article, titleURLMatches); item != nil {
+			return item
+		}
+		log.Printf("Ambiguous URL+title feed item match for article_id=%d, candidates=%d", article.ID, len(titleURLMatches))
+		return nil
+	}
+
+	// Third pass: URL/GUID + closest published time (must be uniquely closest and time-near)
+	if item := h.findClosestByPublishedTime(article, urlMatches); item != nil {
+		return item
+	}
+
+	// Fourth pass: title + published time match (fallback for when URL/GUID don't match; must be unique)
+	titleTimeMatches := make([]*gofeed.Item, 0, len(items))
 	for _, item := range items {
 		if h.titlesMatch(item.Title, article.Title) && h.publishedTimesMatch(item.PublishedParsed, &article.PublishedAt) {
-			return item
+			titleTimeMatches = append(titleTimeMatches, item)
 		}
 	}
-
-	// Final fallback: just title match
-	for _, item := range items {
-		if h.titlesMatch(item.Title, article.Title) {
+	if len(titleTimeMatches) == 1 {
+		return titleTimeMatches[0]
+	}
+	if len(titleTimeMatches) > 1 {
+		if item := h.findClosestByPublishedTime(article, titleTimeMatches); item != nil {
 			return item
 		}
+		log.Printf("Ambiguous title+time feed item match for article_id=%d, candidates=%d", article.ID, len(titleTimeMatches))
+		return nil
 	}
 
 	return nil
+}
+
+func (h *Handler) itemMatchesArticleURL(item *gofeed.Item, articleURL string) bool {
+	if articleURL == "" {
+		return false
+	}
+
+	if utils.URLsMatch(item.Link, articleURL) {
+		return true
+	}
+
+	if item.GUID != "" && utils.URLsMatch(item.GUID, articleURL) {
+		return true
+	}
+
+	return false
+}
+
+func (h *Handler) findClosestByPublishedTime(article *models.Article, candidates []*gofeed.Item) *gofeed.Item {
+	if len(candidates) == 0 || article.PublishedAt.IsZero() {
+		return nil
+	}
+
+	var best *gofeed.Item
+	var bestDiff time.Duration
+	isTie := false
+
+	for _, item := range candidates {
+		if item.PublishedParsed == nil {
+			continue
+		}
+
+		diff := item.PublishedParsed.Sub(article.PublishedAt)
+		if diff < 0 {
+			diff = -diff
+		}
+
+		if best == nil || diff < bestDiff {
+			best = item
+			bestDiff = diff
+			isTie = false
+		} else if diff == bestDiff {
+			isTie = true
+		}
+	}
+
+	if best == nil || isTie {
+		return nil
+	}
+
+	// Reject far-away matches to avoid cross-item contamination on noisy feeds.
+	if bestDiff > 30*time.Minute {
+		return nil
+	}
+
+	return best
 }
 
 // titlesMatch checks if two titles match, allowing for minor differences
