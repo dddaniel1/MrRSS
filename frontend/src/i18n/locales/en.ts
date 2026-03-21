@@ -1020,6 +1020,8 @@ const en: TranslationMessages = {
     update: {
       autoUpdateInterval: 'Auto Update Interval',
       autoUpdateIntervalDesc: 'Interval for automatic update checks',
+      enableAutoUpdate: 'Enable Auto Update',
+      enableAutoUpdateDesc: 'Automatically download and install app updates when available',
       checkForUpdates: 'Check for Updates',
       currentVersion: 'Current version',
       installFailed: 'Installation failed',

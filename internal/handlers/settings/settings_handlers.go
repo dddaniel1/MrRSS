@@ -67,6 +67,7 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		articleLayoutMode := safeGetSetting(h, "article_layout_mode")
 		autoCleanupEnabled := safeGetSetting(h, "auto_cleanup_enabled")
 		autoShowAllContent := safeGetSetting(h, "auto_show_all_content")
+		autoUpdate := safeGetSetting(h, "auto_update")
 		baiduAppId := safeGetSetting(h, "baidu_app_id")
 		baiduSecretKey := safeGetEncryptedSetting(h, "baidu_secret_key")
 		closeToTray := safeGetSetting(h, "close_to_tray")
@@ -169,6 +170,7 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 			"article_layout_mode": articleLayoutMode,
 			"auto_cleanup_enabled": autoCleanupEnabled,
 			"auto_show_all_content": autoShowAllContent,
+			"auto_update": autoUpdate,
 			"baidu_app_id": baiduAppId,
 			"baidu_secret_key": baiduSecretKey,
 			"close_to_tray": closeToTray,
@@ -273,6 +275,7 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		ArticleLayoutMode             string `json:"article_layout_mode"`
 		AutoCleanupEnabled            string `json:"auto_cleanup_enabled"`
 		AutoShowAllContent            string `json:"auto_show_all_content"`
+		AutoUpdate                    string `json:"auto_update"`
 		BaiduAppId                    string `json:"baidu_app_id"`
 		BaiduSecretKey                string `json:"baidu_secret_key"`
 		CloseToTray                   string `json:"close_to_tray"`
@@ -443,6 +446,10 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 
 		if req.AutoShowAllContent != "" {
 			h.DB.SetSetting("auto_show_all_content", req.AutoShowAllContent)
+		}
+
+		if req.AutoUpdate != "" {
+			h.DB.SetSetting("auto_update", req.AutoUpdate)
 		}
 
 		if req.BaiduAppId != "" {
@@ -801,6 +808,7 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		articleLayoutMode := safeGetSetting(h, "article_layout_mode")
 		autoCleanupEnabled := safeGetSetting(h, "auto_cleanup_enabled")
 		autoShowAllContent := safeGetSetting(h, "auto_show_all_content")
+		autoUpdate := safeGetSetting(h, "auto_update")
 		baiduAppId := safeGetSetting(h, "baidu_app_id")
 		baiduSecretKey := safeGetEncryptedSetting(h, "baidu_secret_key")
 		closeToTray := safeGetSetting(h, "close_to_tray")
@@ -903,6 +911,7 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 			"article_layout_mode": articleLayoutMode,
 			"auto_cleanup_enabled": autoCleanupEnabled,
 			"auto_show_all_content": autoShowAllContent,
+			"auto_update": autoUpdate,
 			"baidu_app_id": baiduAppId,
 			"baidu_secret_key": baiduSecretKey,
 			"close_to_tray": closeToTray,

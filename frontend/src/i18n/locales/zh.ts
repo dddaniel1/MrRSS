@@ -1003,6 +1003,8 @@ const zh: TranslationMessages = {
     update: {
       autoUpdateInterval: '自动更新间隔',
       autoUpdateIntervalDesc: '自动检查更新的时间间隔',
+      enableAutoUpdate: '启用自动更新',
+      enableAutoUpdateDesc: '发现新版本时自动下载并安装应用更新',
       checkForUpdates: '检查更新',
       currentVersion: '当前版本',
       installFailed: '安装失败',

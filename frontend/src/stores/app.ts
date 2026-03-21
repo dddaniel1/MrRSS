@@ -547,27 +547,19 @@ export const useAppStore = defineStore('app', () => {
 
   async function checkForAppUpdates(): Promise<void> {
     try {
+      const { settings } = useSettings();
+      if (!settings.value.auto_update) {
+        return;
+      }
+
       const res = await fetch('/api/check-updates');
       if (res.ok) {
         const data = await res.json();
 
         // Only proceed if there's an update available and a download URL
         if (data.has_update && data.download_url) {
-          // Check if auto-update is enabled before downloading
-          const { settings } = useSettings();
-
-          console.log('[DEBUG] Update found, auto_update =', settings.value.auto_update);
-          if (settings.value.auto_update) {
-            console.log('[DEBUG] Auto-downloading update...');
-            // Auto download and install in background
-            autoDownloadAndInstall(data.download_url, data.asset_name);
-          } else {
-            console.log('[DEBUG] Auto-update disabled, showing notification only');
-            // Just show notification that update is available
-            if (window.showToast) {
-              window.showToast(`Update available: v${data.latest_version}`, 'info', 5000);
-            }
-          }
+          // Auto download and install in background
+          autoDownloadAndInstall(data.download_url, data.asset_name);
         }
       }
     } catch {

@@ -4,9 +4,11 @@
 import { ref, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { UpdateInfo, DownloadResponse, InstallResponse } from '@/types/settings';
+import { useSettings } from '@/composables/core/useSettings';
 
 export function useAppUpdates() {
   const { t } = useI18n();
+  const { settings } = useSettings();
 
   const updateInfo: Ref<UpdateInfo | null> = ref(null);
   const checkingUpdates = ref(false);
@@ -19,6 +21,10 @@ export function useAppUpdates() {
    * @param silent - If true, don't show toast when up to date (for startup checks)
    */
   async function checkForUpdates(silent = false) {
+    if (!settings.value.auto_update) {
+      return;
+    }
+
     checkingUpdates.value = true;
     updateInfo.value = null;
 

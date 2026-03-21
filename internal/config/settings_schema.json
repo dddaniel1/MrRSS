@@ -11,6 +11,13 @@
       "encrypted": false,
       "frontend_key": "updateInterval"
     },
+    "auto_update": {
+      "type": "bool",
+      "default": false,
+      "category": "general",
+      "encrypted": false,
+      "frontend_key": "autoUpdate"
+    },
     "refresh_mode": {
       "type": "string",
       "default": "fixed",

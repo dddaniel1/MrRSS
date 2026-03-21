@@ -38,6 +38,7 @@ type Defaults struct {
 	ArticleLayoutMode string            `json:"article_layout_mode"`
 	AutoCleanupEnabled bool             `json:"auto_cleanup_enabled"`
 	AutoShowAllContent bool             `json:"auto_show_all_content"`
+	AutoUpdate bool                     `json:"auto_update"`
 	BaiduAppId string                   `json:"baidu_app_id"`
 	BaiduSecretKey string               `json:"baidu_secret_key"`
 	CloseToTray bool                    `json:"close_to_tray"`
@@ -177,6 +178,8 @@ func GetString(key string) string {
 		return strconv.FormatBool(defaults.AutoCleanupEnabled)
 	case "auto_show_all_content":
 		return strconv.FormatBool(defaults.AutoShowAllContent)
+	case "auto_update":
+		return strconv.FormatBool(defaults.AutoUpdate)
 	case "baidu_app_id":
 		return defaults.BaiduAppId
 	case "baidu_secret_key":
