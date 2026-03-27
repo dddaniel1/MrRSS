@@ -38,6 +38,9 @@ const emit = defineEmits<{
 const ITEMS_PER_PAGE = 30;
 const SCROLL_THRESHOLD_PX = 500; // Start loading more items when user is 500px from bottom
 const FIRST_SCREEN_EAGER_IMAGES = 8;
+const GALLERY_MIN_COLUMN_WIDTH = 300;
+const GALLERY_MAX_COLUMNS = 4;
+const GALLERY_COLUMN_GAP = 12;
 const MIN_SCALE = 0.5;
 const MAX_SCALE = 5;
 const SCALE_STEP = 0.25;
@@ -52,6 +55,8 @@ const allImages = ref<string[]>([]);
 const currentImageIndex = ref(0);
 const currentImageLoading = ref(false);
 const containerRef = ref<HTMLElement | null>(null);
+const galleryContentRef = ref<HTMLElement | null>(null);
+const masonryColumnCount = ref(1);
 const contextMenu = ref<{ show: boolean; x: number; y: number; article: Article | null }>({
   show: false,
   x: 0,
@@ -70,6 +75,74 @@ const sortedArticles = computed(() =>
     return new Date(b.published_at).getTime() - new Date(a.published_at).getTime();
   })
 );
+
+const articleOrderMap = computed(() => {
+  const indexMap = new Map<number, number>();
+  sortedArticles.value.forEach((article, index) => {
+    indexMap.set(article.id, index);
+  });
+  return indexMap;
+});
+
+const masonryColumns = computed(() => {
+  const count = Math.max(1, masonryColumnCount.value);
+  const columns: Article[][] = Array.from({ length: count }, () => []);
+
+  sortedArticles.value.forEach((article, index) => {
+    columns[index % count].push(article);
+  });
+
+  return columns;
+});
+
+let galleryResizeObserver: ResizeObserver | null = null;
+let resizeRafId: number | null = null;
+
+function setupGalleryResizeObserver() {
+  if (typeof ResizeObserver === 'undefined') {
+    return;
+  }
+
+  if (!galleryResizeObserver) {
+    galleryResizeObserver = new ResizeObserver(() => {
+      scheduleMasonryColumnUpdate();
+    });
+  }
+
+  if (galleryContentRef.value) {
+    galleryResizeObserver.disconnect();
+    galleryResizeObserver.observe(galleryContentRef.value);
+  }
+}
+
+function calculateMasonryColumnCount(width: number): number {
+  if (!Number.isFinite(width) || width <= 0) {
+    return 1;
+  }
+
+  const rawCount = Math.floor((width + GALLERY_COLUMN_GAP) / (GALLERY_MIN_COLUMN_WIDTH + GALLERY_COLUMN_GAP));
+  return Math.min(GALLERY_MAX_COLUMNS, Math.max(1, rawCount));
+}
+
+function updateMasonryColumnCount() {
+  const width = galleryContentRef.value?.clientWidth || containerRef.value?.clientWidth || window.innerWidth;
+  masonryColumnCount.value = calculateMasonryColumnCount(width);
+}
+
+function scheduleMasonryColumnUpdate() {
+  if (resizeRafId !== null) {
+    window.cancelAnimationFrame(resizeRafId);
+  }
+  resizeRafId = window.requestAnimationFrame(() => {
+    resizeRafId = null;
+    updateMasonryColumnCount();
+  });
+}
+
+function shouldEagerLoad(article: Article): boolean {
+  const index = articleOrderMap.value.get(article.id) ?? Number.MAX_SAFE_INTEGER;
+  return index < FIRST_SCREEN_EAGER_IMAGES;
+}
 
 function setImageListCache(articleId: number, images: string[]) {
   const next = new Map(imageListCache.value);
@@ -882,11 +955,26 @@ watch(category, async () => {
   await nextTick();
 });
 
+watch(
+  () => articles.value.length,
+  async (length) => {
+    if (length <= 0) {
+      return;
+    }
+    await nextTick();
+    setupGalleryResizeObserver();
+    scheduleMasonryColumnUpdate();
+  }
+);
+
 onMounted(() => {
   fetchImages();
   if (containerRef.value) {
     containerRef.value.addEventListener('scroll', handleScroll);
   }
+  scheduleMasonryColumnUpdate();
+  setupGalleryResizeObserver();
+  window.addEventListener('resize', scheduleMasonryColumnUpdate);
   window.addEventListener('click', closeContextMenu);
   window.addEventListener('keydown', handleKeyDown);
 });
@@ -895,6 +983,15 @@ onUnmounted(() => {
   if (containerRef.value) {
     containerRef.value.removeEventListener('scroll', handleScroll);
   }
+  if (galleryResizeObserver) {
+    galleryResizeObserver.disconnect();
+    galleryResizeObserver = null;
+  }
+  if (resizeRafId !== null) {
+    window.cancelAnimationFrame(resizeRafId);
+    resizeRafId = null;
+  }
+  window.removeEventListener('resize', scheduleMasonryColumnUpdate);
   window.removeEventListener('click', closeContextMenu);
   window.removeEventListener('keydown', handleKeyDown);
 });
@@ -931,91 +1028,97 @@ onUnmounted(() => {
     <!-- Scrollable content area -->
     <div ref="containerRef" class="flex-1 overflow-y-scroll scroll-smooth">
       <!-- Masonry Grid -->
-      <div v-if="articles.length > 0" class="p-4 image-gallery-columns">
+      <div v-if="articles.length > 0" ref="galleryContentRef" class="p-4 image-gallery-columns">
         <div
-          v-for="(article, index) in sortedArticles"
-          :key="article.id"
-          class="image-gallery-item cursor-pointer group"
-          @contextmenu="handleContextMenu($event, article)"
-          @click="handleCardClick(article, $event)"
+          v-for="(column, columnIndex) in masonryColumns"
+          :key="`gallery-column-${columnIndex}`"
+          class="image-gallery-column"
         >
           <div
-            class="relative overflow-hidden rounded-lg bg-bg-secondary transition-transform duration-200 hover:scale-[1.02] image-gallery-media"
+            v-for="article in column"
+            :key="article.id"
+            class="image-gallery-item cursor-pointer group"
+            @contextmenu="handleContextMenu($event, article)"
+            @click="handleCardClick(article, $event)"
           >
-            <Transition :name="getPreviewTransitionName(article)" mode="out-in">
-              <img
-                :key="`${article.id}-${previewIndexCache.get(article.id) ?? 0}`"
-                :src="getPreviewImage(article)"
-                :alt="article.title"
-                class="w-full h-full object-cover block"
-                :loading="index < FIRST_SCREEN_EAGER_IMAGES ? 'eager' : 'lazy'"
-                :fetchpriority="index < FIRST_SCREEN_EAGER_IMAGES ? 'high' : 'auto'"
-                :referrerpolicy="getImageReferrerPolicy(article.image_url || '')"
-              />
-            </Transition>
-            <template v-if="getImageCount(article) > 1">
-              <button
-                class="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white text-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                type="button"
-                @click.stop.prevent="changePreviewImage(article, 'prev')"
-                @mousedown.stop
-                @mouseup.stop
-              >
-                ‹
-              </button>
-              <button
-                class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white text-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                type="button"
-                @click.stop.prevent="changePreviewImage(article, 'next')"
-                @mousedown.stop
-                @mouseup.stop
-              >
-                ›
-              </button>
-            </template>
-            <!-- Image count indicator -->
             <div
-              v-if="getImageCount(article) > 1"
-              class="absolute bottom-2 left-2 px-2 py-1 rounded-full bg-black/60 text-white text-xs font-semibold backdrop-blur-sm z-10 flex items-center gap-1"
+              class="relative overflow-hidden rounded-lg bg-bg-secondary transition-transform duration-200 hover:scale-[1.02] image-gallery-media"
             >
-              <PhImage :size="14" />
-              <span class="ml-1">{{ getImageCount(article) }}</span>
-            </div>
-            <div
-              class="absolute inset-0 bg-black/0 hover:bg-black/30 transition-all duration-200 flex items-start justify-end p-2 pointer-events-none"
-            >
-              <button
-                class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/50 rounded-full p-1.5 hover:bg-black/70 pointer-events-auto"
-                @click="toggleFavorite(article, $event)"
-              >
-                <PhHeart
-                  :size="20"
-                  :weight="article.is_favorite ? 'fill' : 'regular'"
-                  :class="article.is_favorite ? 'text-red-500' : 'text-white'"
+              <Transition :name="getPreviewTransitionName(article)" mode="out-in">
+                <img
+                  :key="`${article.id}-${previewIndexCache.get(article.id) ?? 0}`"
+                  :src="getPreviewImage(article)"
+                  :alt="article.title"
+                  class="w-full h-auto object-cover block"
+                  :loading="shouldEagerLoad(article) ? 'eager' : 'lazy'"
+                  :fetchpriority="shouldEagerLoad(article) ? 'high' : 'auto'"
+                  :referrerpolicy="getImageReferrerPolicy(article.image_url || '')"
                 />
-              </button>
+              </Transition>
+              <template v-if="getImageCount(article) > 1">
+                <button
+                  class="absolute left-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white text-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  type="button"
+                  @click.stop.prevent="changePreviewImage(article, 'prev')"
+                  @mousedown.stop
+                  @mouseup.stop
+                >
+                  ‹
+                </button>
+                <button
+                  class="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-full bg-black/50 hover:bg-black/70 text-white text-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  type="button"
+                  @click.stop.prevent="changePreviewImage(article, 'next')"
+                  @mousedown.stop
+                  @mouseup.stop
+                >
+                  ›
+                </button>
+              </template>
+              <!-- Image count indicator -->
+              <div
+                v-if="getImageCount(article) > 1"
+                class="absolute bottom-2 left-2 px-2 py-1 rounded-full bg-black/60 text-white text-xs font-semibold backdrop-blur-sm z-10 flex items-center gap-1"
+              >
+                <PhImage :size="14" />
+                <span class="ml-1">{{ getImageCount(article) }}</span>
+              </div>
+              <div
+                class="absolute inset-0 bg-black/0 hover:bg-black/30 transition-all duration-200 flex items-start justify-end p-2 pointer-events-none"
+              >
+                <button
+                  class="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/50 rounded-full p-1.5 hover:bg-black/70 pointer-events-auto"
+                  @click="toggleFavorite(article, $event)"
+                >
+                  <PhHeart
+                    :size="20"
+                    :weight="article.is_favorite ? 'fill' : 'regular'"
+                    :class="article.is_favorite ? 'text-red-500' : 'text-white'"
+                  />
+                </button>
+              </div>
+              <!-- Hover overlay when text is hidden -->
+              <div
+                v-if="!showTextOverlay"
+                class="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+              >
+                <p class="text-sm font-medium text-white line-clamp-2 mb-1">
+                  {{ article.title }}
+                </p>
+                <div class="flex items-center justify-between text-xs text-white/80">
+                  <span class="truncate flex-1">{{ article.feed_title }}</span>
+                  <span class="ml-2 shrink-0">{{ formatDate(article.published_at) }}</span>
+                </div>
+              </div>
             </div>
-            <!-- Hover overlay when text is hidden -->
-            <div
-              v-if="!showTextOverlay"
-              class="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/80 via-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200"
-            >
-              <p class="text-sm font-medium text-white line-clamp-2 mb-1">
+            <div v-if="showTextOverlay" class="p-2">
+              <p class="text-sm font-medium text-text-primary line-clamp-2 mb-1">
                 {{ article.title }}
               </p>
-              <div class="flex items-center justify-between text-xs text-white/80">
+              <div class="flex items-center justify-between text-xs text-text-secondary">
                 <span class="truncate flex-1">{{ article.feed_title }}</span>
                 <span class="ml-2 shrink-0">{{ formatDate(article.published_at) }}</span>
               </div>
-            </div>
-          </div>
-          <div v-if="showTextOverlay" class="p-2">
-            <p class="text-sm font-medium text-text-primary line-clamp-2 mb-1">
-              {{ article.title }}
-            </p>
-            <div class="flex items-center justify-between text-xs text-text-secondary">
-              <span class="truncate flex-1">{{ article.feed_title }}</span>
-              <span class="ml-2 shrink-0">{{ formatDate(article.published_at) }}</span>
             </div>
           </div>
         </div>
@@ -1370,20 +1473,23 @@ onUnmounted(() => {
 
 .image-gallery-columns {
   --image-gallery-gap: clamp(8px, 1.2vw, 14px);
-  --image-gallery-card-min: clamp(220px, 24vw, 280px);
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(var(--image-gallery-card-min), 1fr));
+  display: flex;
   gap: var(--image-gallery-gap);
-  align-items: start;
+  align-items: flex-start;
+}
+
+.image-gallery-column {
+  flex: 1;
+  min-width: 0;
 }
 
 .image-gallery-item {
   width: 100%;
+  margin-bottom: var(--image-gallery-gap);
 }
 
 .image-gallery-media {
   width: 100%;
-  aspect-ratio: 4 / 3;
 }
 
 /* Prose content styling */
@@ -1460,7 +1566,6 @@ onUnmounted(() => {
 @media (max-width: 767px) {
   .image-gallery-columns {
     --image-gallery-gap: 8px;
-    --image-gallery-card-min: 160px;
   }
 }
 </style>
