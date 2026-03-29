@@ -25,6 +25,7 @@ const BASE_ITEMS_PER_PAGE = 30;
 const MIN_CARD_WIDTH = 220;
 const GRID_GAP_PX = 16;
 const SCROLL_THRESHOLD_PX = 500;
+const MAX_VIDEO_COLUMNS = 7;
 
 const articles = ref<Article[]>([]);
 const isLoading = ref(false);
@@ -34,6 +35,7 @@ const itemsPerPage = ref(BASE_ITEMS_PER_PAGE);
 const selectedArticle = ref<Article | null>(null);
 const showVideoViewer = ref(false);
 const containerRef = ref<HTMLElement | null>(null);
+const videoColumns = ref(1);
 
 const feedId = computed(() => store.currentFeedId);
 const category = computed(() => store.currentCategory);
@@ -100,12 +102,22 @@ function updateItemsPerPage() {
   const { clientWidth, clientHeight } = containerRef.value;
   if (clientWidth === 0 || clientHeight === 0) return;
 
-  const columns = Math.max(1, Math.floor((clientWidth + GRID_GAP_PX) / (MIN_CARD_WIDTH + GRID_GAP_PX)));
-  const cardHeight = (MIN_CARD_WIDTH * 9) / 16 + 56;
+  const columns = Math.min(
+    MAX_VIDEO_COLUMNS,
+    Math.max(1, Math.floor((clientWidth + GRID_GAP_PX) / (MIN_CARD_WIDTH + GRID_GAP_PX)))
+  );
+  videoColumns.value = columns;
+  const totalGapWidth = (columns - 1) * GRID_GAP_PX;
+  const cardWidth = (clientWidth - totalGapWidth) / columns;
+  const cardHeight = (cardWidth * 9) / 16 + 56;
   const rows = Math.max(2, Math.floor((clientHeight + GRID_GAP_PX) / (cardHeight + GRID_GAP_PX)));
   const next = Math.max(BASE_ITEMS_PER_PAGE, columns * rows * 2);
   itemsPerPage.value = next;
 }
+
+const videoGridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${videoColumns.value}, minmax(0, 1fr))`,
+}));
 
 function handleScroll() {
   if (!containerRef.value || isLoading.value || !hasMore.value) return;
@@ -228,7 +240,9 @@ onUnmounted(() => {
 
 <template>
   <div class="flex flex-col flex-1 h-full bg-bg-primary">
-    <div class="flex-shrink-0 bg-bg-primary border-b border-border p-2 sm:p-4 flex items-center gap-3">
+    <div
+      class="flex-shrink-0 bg-bg-primary border-b border-border p-2 sm:p-4 flex items-center gap-3"
+    >
       <button
         class="p-2 rounded-lg hover:bg-bg-tertiary text-text-primary transition-colors md:hidden"
         :title="t('shortcut.toggle.sidebar')"
@@ -244,7 +258,7 @@ onUnmounted(() => {
     </div>
 
     <div ref="containerRef" class="flex-1 overflow-y-scroll scroll-smooth">
-      <div v-if="articles.length > 0" class="p-4 video-gallery-grid">
+      <div v-if="articles.length > 0" class="p-4 video-gallery-grid" :style="videoGridStyle">
         <div
           v-for="article in sortedArticles"
           :key="article.id"
@@ -262,7 +276,9 @@ onUnmounted(() => {
             <div v-else class="w-full h-full flex items-center justify-center bg-bg-tertiary">
               <PhPlay :size="28" class="text-text-secondary" />
             </div>
-            <div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div
+              class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"
+            ></div>
             <div class="absolute inset-0 flex items-center justify-center">
               <div
                 class="w-12 h-12 rounded-full bg-black/60 text-white flex items-center justify-center shadow-lg"
@@ -304,7 +320,9 @@ onUnmounted(() => {
       </div>
 
       <div v-if="isLoading" class="flex justify-center py-8">
-        <div class="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"></div>
+        <div
+          class="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"
+        ></div>
       </div>
     </div>
 
@@ -362,7 +380,6 @@ onUnmounted(() => {
 <style scoped>
 .video-gallery-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
   gap: clamp(12px, 1.6vw, 20px);
 }
 
