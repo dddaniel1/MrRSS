@@ -101,11 +101,10 @@ onMounted(async () => {
       ((data.compact_mode === true || data.compact_mode === 'true') ? 'compact' : 'normal');
     isCardLayoutMode.value = layoutMode === 'grid';
 
-    // Set initial article list width based on compact mode setting
+    // Keep article list width consistent across compact/normal modes
     const isCompactMode = layoutMode === 'compact';
-    // First set the compact mode, then set the width (order matters)
+    // Keep mode state in sync without forcing width reset
     setCompactMode(isCompactMode);
-    setArticleListWidth(isCompactMode ? 500 : 350);
 
     // Notify all components that settings have been loaded
     window.dispatchEvent(new CustomEvent('settings-loaded'));
@@ -228,7 +227,6 @@ window.addEventListener('compact-mode-changed', (e) => {
   const customEvent = e as CustomEvent<{ enabled: boolean }>;
   const enabled = customEvent.detail.enabled;
   setCompactMode(enabled);
-  setArticleListWidth(enabled ? 600 : 400); // Always update width when user changes setting
 });
 
 window.addEventListener('article-layout-mode-changed', (e) => {
@@ -237,7 +235,6 @@ window.addEventListener('article-layout-mode-changed', (e) => {
   isCardLayoutMode.value = mode === 'grid';
   const compact = mode === 'compact';
   setCompactMode(compact);
-  setArticleListWidth(compact ? 600 : 400);
 });
 
 // Global Context Menu Event Listener

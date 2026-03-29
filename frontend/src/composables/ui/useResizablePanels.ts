@@ -69,9 +69,9 @@ export function useResizablePanels() {
     // Calculate the delta from the initial position and apply to initial width
     const deltaX = currentMouseX - initialMouseX.value;
     const newWidth = initialArticleListWidth.value + deltaX;
-    // In compact mode, allow wider range (300-800), in normal mode (250-600)
-    const minWidth = compactMode.value ? 300 : 280;
-    const maxWidth = compactMode.value ? 800 : 600;
+    // Keep the same resize constraints in compact and normal modes
+    const minWidth = 280;
+    const maxWidth = 800;
     if (newWidth >= minWidth && newWidth <= maxWidth) {
       articleListWidth.value = newWidth;
       // Mark that user has manually resized
