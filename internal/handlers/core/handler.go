@@ -7,6 +7,8 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -167,9 +169,42 @@ func (h *Handler) GetArticleContent(articleID int64) (string, bool, error) {
 }
 
 // FetchFullArticleContent fetches the full article content from the original URL using readability.
-func (h *Handler) FetchFullArticleContent(url string) (string, error) {
-	// Use FromURL which handles the HTTP request internally
-	article, err := readability.FromURL(url, 30*time.Second)
+func (h *Handler) FetchFullArticleContent(articleURL string) (string, error) {
+	parsedURL, err := url.Parse(articleURL)
+	if err != nil {
+		return "", fmt.Errorf("invalid article URL: %w", err)
+	}
+
+	proxyURL, err := h.getGlobalProxyURL()
+	if err != nil {
+		return "", fmt.Errorf("read proxy settings: %w", err)
+	}
+
+	httpClient, err := utils.CreateHTTPClientWithUserAgent(
+		proxyURL,
+		30*time.Second,
+		"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+	)
+	if err != nil {
+		return "", fmt.Errorf("create HTTP client: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, parsedURL.String(), nil)
+	if err != nil {
+		return "", fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("request article URL: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("request article URL: HTTP %d", resp.StatusCode)
+	}
+
+	article, err := readability.FromReader(resp.Body, parsedURL)
 	if err != nil {
 		return "", fmt.Errorf("readability parse: %w", err)
 	}
@@ -182,6 +217,21 @@ func (h *Handler) FetchFullArticleContent(url string) (string, error) {
 	}
 
 	return buf.String(), nil
+}
+
+func (h *Handler) getGlobalProxyURL() (string, error) {
+	proxyEnabled, err := h.DB.GetSetting("proxy_enabled")
+	if err != nil || proxyEnabled != "true" {
+		return "", nil
+	}
+
+	proxyType, _ := h.DB.GetSetting("proxy_type")
+	proxyHost, _ := h.DB.GetSetting("proxy_host")
+	proxyPort, _ := h.DB.GetSetting("proxy_port")
+	proxyUsername, _ := h.DB.GetEncryptedSetting("proxy_username")
+	proxyPassword, _ := h.DB.GetEncryptedSetting("proxy_password")
+
+	return utils.BuildProxyURL(proxyType, proxyHost, proxyPort, proxyUsername, proxyPassword), nil
 }
 
 // findMatchingFeedItem finds the best matching feed item for an article using multiple criteria
