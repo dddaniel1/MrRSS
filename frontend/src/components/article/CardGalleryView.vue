@@ -36,9 +36,23 @@ const showFilterModal = ref(false);
 const {
   activeFilters,
   filteredArticlesFromServer,
+  isFilterLoading,
+  filterHasMore,
   resetFilterState,
   fetchFilteredArticles,
+  loadMoreFilteredArticles,
 } = useArticleFilter();
+
+const BASE_MIN_CARD_WIDTH = 220;
+const CARD_GRID_GAP_PX = 16;
+const CARD_SCROLL_THRESHOLD_PX = 500;
+const MAX_CARD_COLUMNS = 7;
+
+const galleryContainerRef = ref<HTMLElement | null>(null);
+const cardGridRef = ref<HTMLElement | null>(null);
+const cardColumns = ref(1);
+let cardResizeObserver: { disconnect: () => void; observe: Function } | null = null;
+const scrollLoadInFlight = ref(false);
 
 type ArticleWithBodyFields = Article & {
   content?: string;
@@ -63,7 +77,10 @@ const currentLayoutLabel = computed(() => {
 });
 
 function stripHtml(input: string): string {
-  return input.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  return input
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 }
 
 function truncateText(input: string, maxLength: number): string {
@@ -127,7 +144,8 @@ function getPlaceholderStyle(article: Article): Record<string, string> {
 }
 
 const filteredArticles = computed(() => {
-  let articles = activeFilters.value.length > 0 ? [...filteredArticlesFromServer.value] : [...store.articles];
+  let articles =
+    activeFilters.value.length > 0 ? [...filteredArticlesFromServer.value] : [...store.articles];
 
   if (store.showOnlyUnread) {
     articles = articles.filter((a) => !a.is_read);
@@ -151,6 +169,87 @@ const filteredArticles = computed(() => {
     (a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
   );
 });
+
+const cardGridStyle = computed(() => ({
+  gridTemplateColumns: `repeat(${cardColumns.value}, minmax(0, 1fr))`,
+}));
+
+const isLoadingMore = computed(() => {
+  if (activeFilters.value.length > 0) {
+    return isFilterLoading.value;
+  }
+  return store.isLoading;
+});
+
+const hasMoreArticles = computed(() => {
+  if (activeFilters.value.length > 0) {
+    return filterHasMore.value;
+  }
+  return store.hasMore;
+});
+
+function updateCardColumns(): void {
+  const target = cardGridRef.value ?? galleryContainerRef.value;
+  const width = target?.clientWidth;
+  if (!width || width <= 0) {
+    return;
+  }
+
+  const styles = target ? window.getComputedStyle(target) : null;
+  const paddingLeft = Number.parseFloat(styles?.paddingLeft || '0') || 0;
+  const paddingRight = Number.parseFloat(styles?.paddingRight || '0') || 0;
+  const effectiveGap =
+    Number.parseFloat(styles?.columnGap || styles?.gap || '0') || CARD_GRID_GAP_PX;
+  const contentWidth = Math.max(0, width - paddingLeft - paddingRight);
+
+  const calculated = Math.floor(
+    (contentWidth + effectiveGap) / (BASE_MIN_CARD_WIDTH + effectiveGap)
+  );
+  cardColumns.value = Math.min(MAX_CARD_COLUMNS, Math.max(1, calculated));
+}
+
+function setupCardResizeObserver(): void {
+  const ResizeObserverConstructor = window.ResizeObserver;
+  if (!ResizeObserverConstructor || !galleryContainerRef.value) {
+    return;
+  }
+
+  if (!cardResizeObserver) {
+    cardResizeObserver = new ResizeObserverConstructor(() => {
+      updateCardColumns();
+    });
+  }
+
+  cardResizeObserver.disconnect();
+  cardResizeObserver.observe(galleryContainerRef.value);
+}
+
+async function handleGalleryScroll(event: Event): Promise<void> {
+  const target = event.target as HTMLElement;
+  if (!target) {
+    return;
+  }
+
+  if (scrollLoadInFlight.value || isLoadingMore.value || !hasMoreArticles.value) {
+    return;
+  }
+
+  const { scrollTop, clientHeight, scrollHeight } = target;
+  if (scrollTop + clientHeight < scrollHeight - CARD_SCROLL_THRESHOLD_PX) {
+    return;
+  }
+
+  scrollLoadInFlight.value = true;
+  try {
+    if (activeFilters.value.length > 0) {
+      await loadMoreFilteredArticles();
+    } else {
+      await store.loadMore();
+    }
+  } finally {
+    scrollLoadInFlight.value = false;
+  }
+}
 
 async function markAsRead(article: Article) {
   if (article.is_read) return;
@@ -292,6 +391,16 @@ function onToggleFilter(): void {
   showFilterModal.value = !showFilterModal.value;
 }
 
+function onCardDetailKeydown(event: KeyboardEvent): void {
+  if (!showArticleDetailOverlay.value) {
+    return;
+  }
+
+  if (event.key === 'Escape') {
+    closeCardDetail();
+  }
+}
+
 async function loadLayoutModeFromSettings(): Promise<void> {
   try {
     const res = await fetch('/api/settings');
@@ -324,11 +433,24 @@ function onArticleLayoutModeChanged(e: Event): void {
 
 onMounted(() => {
   loadLayoutModeFromSettings();
+  updateCardColumns();
+  setupCardResizeObserver();
+  window.addEventListener('resize', updateCardColumns);
+  window.addEventListener('keydown', onCardDetailKeydown);
   window.addEventListener('toggle-filter', onToggleFilter);
-  window.addEventListener('article-layout-mode-changed', onArticleLayoutModeChanged as EventListener);
+  window.addEventListener(
+    'article-layout-mode-changed',
+    onArticleLayoutModeChanged as EventListener
+  );
 });
 
 onBeforeUnmount(() => {
+  if (cardResizeObserver) {
+    cardResizeObserver.disconnect();
+    cardResizeObserver = null;
+  }
+  window.removeEventListener('resize', updateCardColumns);
+  window.removeEventListener('keydown', onCardDetailKeydown);
   window.removeEventListener('toggle-filter', onToggleFilter);
   window.removeEventListener(
     'article-layout-mode-changed',
@@ -339,7 +461,9 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="flex flex-col flex-1 h-full bg-bg-primary">
-    <div class="flex-shrink-0 bg-bg-primary border-b border-border p-2 sm:p-4 flex items-center gap-3">
+    <div
+      class="flex-shrink-0 bg-bg-primary border-b border-border p-2 sm:p-4 flex items-center gap-3"
+    >
       <button
         class="p-2 rounded-lg hover:bg-bg-tertiary text-text-primary transition-colors md:hidden"
         :title="t('shortcut.toggle.sidebar')"
@@ -367,8 +491,17 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-scroll scroll-smooth">
-      <div v-if="filteredArticles.length > 0" class="p-4 card-gallery-columns">
+    <div
+      ref="galleryContainerRef"
+      class="flex-1 overflow-y-scroll scroll-smooth"
+      @scroll="handleGalleryScroll"
+    >
+      <div
+        v-if="filteredArticles.length > 0"
+        ref="cardGridRef"
+        class="p-4 card-gallery-grid"
+        :style="cardGridStyle"
+      >
         <article
           v-for="article in filteredArticles"
           :key="article.id"
@@ -409,30 +542,49 @@ onBeforeUnmount(() => {
               <span class="shrink-0">{{ formatDate(article.published_at) }}</span>
             </div>
             <div class="mt-2 flex items-center gap-2 text-text-secondary">
-              <PhClockCountdown v-if="article.is_read_later" :size="14" class="text-blue-500" weight="fill" />
+              <PhClockCountdown
+                v-if="article.is_read_later"
+                :size="14"
+                class="text-blue-500"
+                weight="fill"
+              />
               <PhStar v-if="article.is_favorite" :size="14" class="text-yellow-500" weight="fill" />
             </div>
           </div>
         </article>
       </div>
 
-      <div v-else class="h-full flex items-center justify-center text-text-secondary">
+      <div v-if="isLoadingMore" class="pb-6 flex justify-center">
+        <div
+          class="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin"
+        ></div>
+      </div>
+
+      <div
+        v-else-if="filteredArticles.length === 0 && !isLoadingMore"
+        class="h-full flex items-center justify-center text-text-secondary"
+      >
         {{ t('article.content.noArticles') }}
       </div>
     </div>
 
     <div
       v-if="showArticleDetailOverlay && store.currentArticleId"
-      class="card-detail-overlay fixed inset-0 z-50 p-2 sm:p-5"
+      class="card-detail-overlay fixed inset-0 z-50 p-2 sm:p-5 flex items-stretch sm:items-center justify-center"
       @click="closeCardDetail"
     >
-      <div class="card-detail-shell w-full h-full sm:h-[calc(100vh-2.5rem)] sm:max-w-6xl sm:mx-auto" @click.stop>
+      <div
+        class="card-detail-shell w-full h-full sm:h-[min(92vh,calc(100vh-3rem))] sm:max-w-[1200px]"
+        @click.stop
+      >
         <button
-          class="card-detail-close absolute top-3 left-3 z-[70] w-9 h-9 rounded-full transition-colors hidden sm:flex items-center justify-center"
+          type="button"
+          class="card-detail-close absolute top-3 left-3 z-[70] p-1.5 sm:p-2 rounded-lg transition-colors flex items-center justify-center text-text-secondary hover:text-text-primary hover:bg-bg-tertiary"
           :title="t('common.close')"
+          :aria-label="t('common.close')"
           @click="closeCardDetail"
         >
-          <PhX :size="18" />
+          <PhX :size="20" class="sm:w-6 sm:h-6" />
         </button>
         <div class="card-detail-content h-full w-full overflow-hidden rounded-[inherit]">
           <ArticleDetail />
@@ -452,18 +604,16 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.card-gallery-columns {
+.card-gallery-grid {
   --card-gap: clamp(12px, 1.6vw, 20px);
-  column-width: clamp(150px, 16vw, 220px);
-  column-gap: var(--card-gap);
+  display: grid;
+  grid-template-columns: repeat(1, minmax(0, 1fr));
+  gap: var(--card-gap);
 }
 
 .card-gallery-item {
-  break-inside: avoid;
-  display: inline-flex;
+  display: flex;
   flex-direction: column;
-  width: 100%;
-  margin-bottom: var(--card-gap);
   aspect-ratio: 1 / 1;
 }
 
@@ -538,18 +688,23 @@ onBeforeUnmount(() => {
 }
 
 .card-detail-overlay {
-  background: color-mix(in srgb, black 58%, transparent);
-  backdrop-filter: blur(6px);
+  background:
+    radial-gradient(circle at top center, rgba(120, 160, 255, 0.16), transparent 46%),
+    color-mix(in srgb, black 62%, transparent);
+  backdrop-filter: blur(10px) saturate(112%);
 }
 
 .card-detail-shell {
   position: relative;
-  border-radius: 1rem;
-  border: 1px solid color-mix(in srgb, var(--color-border) 82%, white 18%);
-  background: var(--color-bg-primary);
+  border-radius: 0;
+  border: 1px solid color-mix(in srgb, var(--color-border) 72%, white 28%);
+  background: color-mix(in srgb, var(--color-bg-primary) 95%, black 5%);
+  overflow: hidden;
+  animation: card-detail-pop-in 220ms cubic-bezier(0.2, 0.75, 0.2, 1);
   box-shadow:
-    0 24px 64px rgba(0, 0, 0, 0.42),
-    0 4px 14px rgba(0, 0, 0, 0.22);
+    0 32px 88px rgba(0, 0, 0, 0.5),
+    0 10px 24px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 .card-detail-shell::before {
@@ -560,19 +715,32 @@ onBeforeUnmount(() => {
   pointer-events: none;
   background: linear-gradient(
     to bottom,
-    color-mix(in srgb, var(--color-bg-secondary) 58%, transparent),
-    transparent 18%
+    color-mix(in srgb, var(--color-bg-secondary) 70%, transparent),
+    transparent 16%
   );
-  opacity: 0.45;
+  opacity: 0.38;
 }
 
-.card-detail-close {
-  border: 1px solid color-mix(in srgb, var(--color-border) 78%, white 22%);
-  background: color-mix(in srgb, var(--color-bg-tertiary) 84%, black 16%);
-  color: var(--color-text-primary);
+@keyframes card-detail-pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-.card-detail-close:hover {
-  background: color-mix(in srgb, var(--color-bg-tertiary) 96%, black 4%);
+@media (prefers-reduced-motion: reduce) {
+  .card-detail-shell {
+    animation: none;
+  }
+}
+
+@media (min-width: 640px) {
+  .card-detail-shell {
+    border-radius: 1rem;
+  }
 }
 </style>
