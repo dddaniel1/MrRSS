@@ -102,6 +102,12 @@ export interface SettingsData {
   translation_only_mode: boolean;
   translation_provider: string;
   update_interval: number;
+  webdav_enabled: boolean;
+  webdav_last_sync_time: string;
+  webdav_password: string;
+  webdav_remote_path: string;
+  webdav_url: string;
+  webdav_username: string;
   window_height: string;
   window_maximized: string;
   window_width: string;
