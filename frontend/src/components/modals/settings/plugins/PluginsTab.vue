@@ -9,6 +9,7 @@ import ObsidianSettings from './ObsidianSettings.vue';
 import FreshRSSSettings from './FreshRSSSettings.vue';
 import AliPanSettings from './AliPanSettings.vue';
 import RSSHubSettings from './RSSHubSettings.vue';
+import WebDAVSettings from './WebDAVSettings.vue';
 
 interface Props {
   settings: SettingsData;
@@ -42,6 +43,8 @@ function handleUpdateSettings(updatedSettings: SettingsData) {
     <ObsidianSettings :settings="settings" @update:settings="handleUpdateSettings" />
 
     <FreshRSSSettings :settings="settings" @update:settings="handleUpdateSettings" />
+
+    <WebDAVSettings :settings="settings" @update:settings="handleUpdateSettings" />
 
     <AliPanSettings :settings="settings" @update:settings="handleUpdateSettings" />
 
