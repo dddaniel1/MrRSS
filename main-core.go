@@ -41,6 +41,7 @@ import (
 	summary "MrRSS/internal/handlers/summary"
 	translationhandlers "MrRSS/internal/handlers/translation"
 	update "MrRSS/internal/handlers/update"
+	webdavHandler "MrRSS/internal/handlers/webdav"
 	window "MrRSS/internal/handlers/window"
 	"MrRSS/internal/network"
 	"MrRSS/internal/translation"
@@ -268,6 +269,7 @@ func main() {
 	apiMux.HandleFunc("/api/freshrss/sync", func(w http.ResponseWriter, r *http.Request) { freshrssHandler.HandleSync(h, w, r) })
 	apiMux.HandleFunc("/api/freshrss/sync-feed", func(w http.ResponseWriter, r *http.Request) { freshrssHandler.HandleSyncFeed(h, w, r) })
 	apiMux.HandleFunc("/api/freshrss/status", func(w http.ResponseWriter, r *http.Request) { freshrssHandler.HandleSyncStatus(h, w, r) })
+	apiMux.HandleFunc("/api/webdav/sync", func(w http.ResponseWriter, r *http.Request) { webdavHandler.HandleSync(h, w, r) })
 	apiMux.HandleFunc("/api/alipan/oauth/status", func(w http.ResponseWriter, r *http.Request) { alipanHandler.HandleOAuthStatus(h, w, r) })
 	apiMux.HandleFunc("/api/alipan/oauth/start", func(w http.ResponseWriter, r *http.Request) { alipanHandler.HandleOAuthStart(h, w, r) })
 	apiMux.HandleFunc("/api/alipan/oauth/callback", func(w http.ResponseWriter, r *http.Request) { alipanHandler.HandleOAuthCallback(h, w, r) })
