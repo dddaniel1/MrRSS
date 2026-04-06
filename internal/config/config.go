@@ -115,6 +115,12 @@ type Defaults struct {
 	TranslationOnlyMode bool            `json:"translation_only_mode"`
 	TranslationProvider string          `json:"translation_provider"`
 	UpdateInterval int                  `json:"update_interval"`
+	WebdavEnabled bool                  `json:"webdav_enabled"`
+	WebdavLastSyncTime string           `json:"webdav_last_sync_time"`
+	WebdavPassword string               `json:"webdav_password"`
+	WebdavRemotePath string             `json:"webdav_remote_path"`
+	WebdavUrl string                    `json:"webdav_url"`
+	WebdavUsername string               `json:"webdav_username"`
 	WindowHeight string                 `json:"window_height"`
 	WindowMaximized string              `json:"window_maximized"`
 	WindowWidth string                  `json:"window_width"`
@@ -332,6 +338,18 @@ func GetString(key string) string {
 		return defaults.TranslationProvider
 	case "update_interval":
 		return strconv.Itoa(defaults.UpdateInterval)
+	case "webdav_enabled":
+		return strconv.FormatBool(defaults.WebdavEnabled)
+	case "webdav_last_sync_time":
+		return defaults.WebdavLastSyncTime
+	case "webdav_password":
+		return defaults.WebdavPassword
+	case "webdav_remote_path":
+		return defaults.WebdavRemotePath
+	case "webdav_url":
+		return defaults.WebdavUrl
+	case "webdav_username":
+		return defaults.WebdavUsername
 	case "window_height":
 		return defaults.WindowHeight
 	case "window_maximized":
