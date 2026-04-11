@@ -38,11 +38,12 @@ const (
 
 // DiscoveryState represents the current state of a discovery operation
 type DiscoveryState struct {
-	IsRunning  bool                       `json:"is_running"`
-	Progress   discovery.Progress         `json:"progress"`
-	Feeds      []discovery.DiscoveredBlog `json:"feeds,omitempty"`
-	Error      string                     `json:"error,omitempty"`
-	IsComplete bool                       `json:"is_complete"`
+	IsRunning        bool                        `json:"is_running"`
+	Progress         discovery.Progress          `json:"progress"`
+	Feeds            []discovery.DiscoveredBlog  `json:"feeds,omitempty"`
+	FailedCandidates []discovery.FailedCandidate `json:"failed_candidates,omitempty"`
+	Error            string                      `json:"error,omitempty"`
+	IsComplete       bool                        `json:"is_complete"`
 }
 
 // Handler holds all dependencies for HTTP handlers.
@@ -59,6 +60,7 @@ type Handler struct {
 	// Discovery state tracking for polling-based progress
 	DiscoveryMu          sync.RWMutex
 	SingleDiscoveryState *DiscoveryState
+	RecommendState       *DiscoveryState
 	BatchDiscoveryState  *DiscoveryState
 }
 

@@ -41,6 +41,13 @@ type DiscoveredBlog struct {
 	RecentArticles []RecentArticle `json:"recent_articles"`
 }
 
+// FailedCandidate represents a candidate website/feed that could not be resolved into a valid subscription.
+type FailedCandidate struct {
+	URL    string `json:"url"`
+	Stage  string `json:"stage"`
+	Reason string `json:"reason"`
+}
+
 // RecentArticle represents a recent article with title and date
 type RecentArticle struct {
 	Title string `json:"title"`
