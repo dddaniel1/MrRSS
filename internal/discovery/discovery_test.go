@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -234,6 +235,66 @@ func TestFindRSSFeed_LinkInHead(t *testing.T) {
 	}
 	if !strings.HasSuffix(feedURL, "/feed.xml") {
 		t.Fatalf("expected feed URL to end with /feed.xml, got %s", feedURL)
+	}
+}
+
+func TestFindRSSFeed_DeterministicCommonPathPriority(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("<html><head></head><body></body></html>"))
+	})
+	mux.HandleFunc("/feed", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "HEAD" {
+			time.Sleep(20 * time.Millisecond)
+			w.Header().Set("Content-Type", "application/rss+xml")
+			w.WriteHeader(200)
+			return
+		}
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("<?xml version=\"1.0\"?><rss><channel><title>Feed</title></channel></rss>"))
+	})
+	mux.HandleFunc("/rss.xml", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "HEAD" {
+			w.Header().Set("Content-Type", "application/rss+xml")
+			w.WriteHeader(200)
+			return
+		}
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("<?xml version=\"1.0\"?><rss><channel><title>RSS</title></channel></rss>"))
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	s := newServiceWithClient(srv.Client())
+	feedURL, err := s.findRSSFeed(context.Background(), srv.URL)
+	if err != nil {
+		t.Fatalf("findRSSFeed error: %v", err)
+	}
+	if !strings.HasSuffix(feedURL, "/rss.xml") {
+		t.Fatalf("expected deterministic priority /rss.xml, got %s", feedURL)
+	}
+}
+
+func TestIsValidFeed_HEAD200FallsBackToGETBody(t *testing.T) {
+	var getCalls int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "HEAD" {
+			w.WriteHeader(200)
+			return
+		}
+		atomic.AddInt32(&getCalls, 1)
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte("<?xml version=\"1.0\"?><feed><title>Atom</title></feed>"))
+	}))
+	defer srv.Close()
+
+	s := newServiceWithClient(srv.Client())
+	if !s.isValidFeed(context.Background(), srv.URL) {
+		t.Fatal("expected feed to be valid after GET body sniff")
+	}
+	if atomic.LoadInt32(&getCalls) == 0 {
+		t.Fatal("expected GET fallback to be used")
 	}
 }
 
