@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch, onMounted, onUnmounted } from 'vue';
+import { watch, onMounted, onUnmounted, computed } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { PhX } from '@phosphor-icons/vue';
 import type { Feed } from '@/types/models';
@@ -17,6 +17,7 @@ useModalClose(() => close());
 interface Props {
   feed: Feed;
   show: boolean;
+  mode?: 'discover' | 'recommend';
 }
 
 const props = defineProps<Props>();
@@ -29,13 +30,14 @@ const emit = defineEmits<{
 const {
   isDiscovering,
   discoveredFeeds,
+  failedCandidates,
   errorMessage,
   progressMessage,
   progressDetail,
   progressCounts,
   startDiscovery,
   cleanup: cleanupDiscovery,
-} = useFeedDiscovery(props.feed);
+} = useFeedDiscovery(props.feed, props.mode || 'discover');
 
 // Use subscription composable
 const {
@@ -47,6 +49,10 @@ const {
   selectAll,
   subscribeSelected,
 } = useFeedSubscription(props.feed, discoveredFeeds);
+
+const modalTitle = computed(() =>
+  props.mode === 'recommend' ? t('modal.discovery.recommendFeeds') : t('modal.discovery.discoverFeeds')
+);
 
 function close() {
   // Clear polling interval if active
@@ -93,7 +99,7 @@ onUnmounted(() => {
       >
         <div class="min-w-0 flex-1">
           <h2 class="text-base sm:text-xl font-bold text-text-primary">
-            {{ t('modal.discovery.discoverFeeds') }}
+            {{ modalTitle }}
           </h2>
           <p class="text-xs sm:text-sm text-text-secondary mt-1 truncate">
             {{ t('modal.filter.fromFeed') }}: {{ feed.title }}
@@ -126,8 +132,9 @@ onUnmounted(() => {
         </div>
 
         <!-- Results -->
-        <div v-else-if="discoveredFeeds.length > 0">
+        <div v-else-if="discoveredFeeds.length > 0 || failedCandidates.length > 0">
           <div
+            v-if="discoveredFeeds.length > 0"
             class="mb-3 sm:mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-bg-secondary rounded-lg p-2 sm:p-3"
           >
             <p class="text-xs sm:text-sm font-medium text-text-primary">
@@ -150,6 +157,35 @@ onUnmounted(() => {
               @toggle="toggleFeedSelection(index)"
             />
           </div>
+
+          <details
+            v-if="failedCandidates.length > 0"
+            class="mt-4 sm:mt-5 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg"
+          >
+            <summary
+              class="list-none cursor-pointer px-3 sm:px-4 py-2.5 sm:py-3 text-amber-700 dark:text-amber-300 font-medium text-sm flex items-center justify-between"
+            >
+              <span>
+                {{ t('modal.discovery.failedCandidatesCount', { count: failedCandidates.length }) }}
+              </span>
+              <span class="text-xs text-amber-600 dark:text-amber-400">{{ t('modal.discovery.viewDetails') }}</span>
+            </summary>
+            <div class="border-t border-amber-200 dark:border-amber-800 px-3 sm:px-4 py-2.5 sm:py-3 space-y-2">
+              <div
+                v-for="(candidate, index) in failedCandidates"
+                :key="`${candidate.url}-${index}`"
+                class="text-xs sm:text-sm rounded-md bg-bg-primary/70 border border-border p-2.5"
+              >
+                <div class="font-medium text-text-primary break-all">{{ candidate.url }}</div>
+                <div class="mt-1 text-text-secondary">
+                  {{ t('modal.discovery.failedCandidateStage') }}: {{ candidate.stage }}
+                </div>
+                <div class="text-text-secondary break-all">
+                  {{ t('modal.discovery.failedCandidateReason') }}: {{ candidate.reason }}
+                </div>
+              </div>
+            </div>
+          </details>
         </div>
 
         <!-- Initial State (should not be visible as discovery auto-starts) -->
