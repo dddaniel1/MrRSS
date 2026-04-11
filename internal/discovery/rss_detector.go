@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"sync"
 
@@ -19,8 +20,15 @@ func (s *Service) discoverRSSFeeds(ctx context.Context, blogURLs []string) []Dis
 
 // discoverRSSFeedsWithProgress discovers RSS feeds with progress updates
 func (s *Service) discoverRSSFeedsWithProgress(ctx context.Context, blogURLs []string, progressCb ProgressCallback) []DiscoveredBlog {
+	discovered, _ := s.discoverRSSFeedsWithProgressDetailed(ctx, blogURLs, progressCb)
+	return discovered
+}
+
+// discoverRSSFeedsWithProgressDetailed discovers RSS feeds and records per-candidate failures.
+func (s *Service) discoverRSSFeedsWithProgressDetailed(ctx context.Context, blogURLs []string, progressCb ProgressCallback) ([]DiscoveredBlog, []FailedCandidate) {
 	var wg sync.WaitGroup
 	results := make(chan DiscoveredBlog, len(blogURLs))
+	failures := make(chan FailedCandidate, len(blogURLs))
 	sem := make(chan struct{}, MaxConcurrentRSSChecks)
 
 	// Track progress
@@ -67,6 +75,8 @@ OuterLoop:
 				foundCount++
 				progressMu.Unlock()
 				results <- blog
+			} else {
+				failures <- FailedCandidate{URL: u, Stage: "checking_rss", Reason: err.Error()}
 			}
 		}(blogURL)
 	}
@@ -74,14 +84,19 @@ OuterLoop:
 	go func() {
 		wg.Wait()
 		close(results)
+		close(failures)
 	}()
 
 	var discovered []DiscoveredBlog
 	for blog := range results {
 		discovered = append(discovered, blog)
 	}
+	var failed []FailedCandidate
+	for failure := range failures {
+		failed = append(failed, failure)
+	}
 
-	return discovered
+	return discovered, failed
 }
 
 // discoverBlogRSS discovers RSS feed for a single blog
@@ -134,6 +149,7 @@ func (s *Service) findRSSFeed(ctx context.Context, blogURL string) (string, erro
 	}
 
 	baseURL := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
+	originalBase := strings.TrimRight(blogURL, "/")
 
 	// First, try to parse HTML and find RSS link in <head> - this is usually the most reliable
 	doc, err := s.fetchHTML(ctx, blogURL)
@@ -177,19 +193,15 @@ func (s *Service) findRSSFeed(ctx context.Context, blogURL string) (string, erro
 		"/feed.atom",
 		"/feed.rss",
 	}
+	candidatePaths := buildCandidateFeedURLs(baseURL, originalBase, commonPaths)
 
-	// Try common paths concurrently for faster discovery
-	type feedResult struct {
-		url   string
-		valid bool
-	}
-	resultCh := make(chan feedResult, len(commonPaths))
+	// Try common paths concurrently for faster discovery, but choose deterministically.
+	resultCh := make(chan string, len(candidatePaths))
 
 	var wg sync.WaitGroup
 	semaphore := make(chan struct{}, MaxConcurrentPathChecks)
 
-	for _, path := range commonPaths {
-		feedURL := baseURL + path
+	for _, feedURL := range candidatePaths {
 		wg.Add(1)
 		go func(fURL string) {
 			defer wg.Done()
@@ -197,7 +209,7 @@ func (s *Service) findRSSFeed(ctx context.Context, blogURL string) (string, erro
 			defer func() { <-semaphore }()
 
 			if s.isValidFeed(ctx, fURL) {
-				resultCh <- feedResult{url: fURL, valid: true}
+				resultCh <- fURL
 			}
 		}(feedURL)
 	}
@@ -207,11 +219,16 @@ func (s *Service) findRSSFeed(ctx context.Context, blogURL string) (string, erro
 		close(resultCh)
 	}()
 
-	// Return the first valid feed found
+	validFeeds := make([]string, 0, len(candidatePaths))
 	for result := range resultCh {
-		if result.valid {
-			return result.url, nil
-		}
+		validFeeds = append(validFeeds, result)
+	}
+
+	if len(validFeeds) > 0 {
+		sort.SliceStable(validFeeds, func(i, j int) bool {
+			return feedPriority(validFeeds[i], candidatePaths) < feedPriority(validFeeds[j], candidatePaths)
+		})
+		return validFeeds[0], nil
 	}
 
 	return "", errRSSFeedNotFound
@@ -230,48 +247,69 @@ func (s *Service) isValidFeed(ctx context.Context, feedURL string) bool {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		// Try GET if HEAD doesn't work
-		req, err = http.NewRequestWithContext(ctx, "GET", feedURL, nil)
-		if err != nil {
-			return false
-		}
+	contentType := strings.ToLower(resp.Header.Get("Content-Type"))
+	if resp.StatusCode == http.StatusOK && (strings.Contains(contentType, "xml") || strings.Contains(contentType, "rss") || strings.Contains(contentType, "atom")) {
+		return true
+	}
 
-		resp2, err := s.client.Do(req)
-		if err != nil {
-			return false
-		}
-		defer resp2.Body.Close()
+	return s.isValidFeedByGET(ctx, feedURL)
+}
 
-		if resp2.StatusCode != http.StatusOK {
-			return false
-		}
-
-		// Read first few bytes to check if it's XML
-		buf := make([]byte, 512)
-		n, err := io.ReadAtLeast(resp2.Body, buf, 1)
-		if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-			return false
-		}
-		if n == 0 {
-			return false
-		}
-		content := string(buf[:n])
-
-		// Check for XML declaration and RSS/Atom tags
-		if strings.Contains(content, "<?xml") ||
-			strings.Contains(content, "<rss") ||
-			strings.Contains(content, "<feed") ||
-			strings.Contains(content, "<atom") {
-			return true
-		}
+func (s *Service) isValidFeedByGET(ctx context.Context, feedURL string) bool {
+	req, err := http.NewRequestWithContext(ctx, "GET", feedURL, nil)
+	if err != nil {
 		return false
 	}
 
-	contentType := resp.Header.Get("Content-Type")
-	return strings.Contains(contentType, "xml") ||
-		strings.Contains(contentType, "rss") ||
-		strings.Contains(contentType, "atom")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return false
+	}
+
+	buf := make([]byte, 1024)
+	n, err := io.ReadAtLeast(resp.Body, buf, 1)
+	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
+		return false
+	}
+	if n == 0 {
+		return false
+	}
+	content := strings.ToLower(string(buf[:n]))
+
+	return strings.Contains(content, "<?xml") ||
+		strings.Contains(content, "<rss") ||
+		strings.Contains(content, "<feed") ||
+		strings.Contains(content, "<atom") ||
+		strings.Contains(content, "rdf:rdf")
+}
+
+func buildCandidateFeedURLs(baseURL, originalBase string, commonPaths []string) []string {
+	seen := map[string]bool{}
+	urls := make([]string, 0, len(commonPaths)*2)
+	for _, root := range []string{originalBase, baseURL} {
+		for _, path := range commonPaths {
+			candidate := root + path
+			if !seen[candidate] {
+				seen[candidate] = true
+				urls = append(urls, candidate)
+			}
+		}
+	}
+	return urls
+}
+
+func feedPriority(feedURL string, orderedCandidates []string) int {
+	for i, candidate := range orderedCandidates {
+		if candidate == feedURL {
+			return i
+		}
+	}
+	return len(orderedCandidates)
 }
 
 // getFavicon gets the favicon URL for a blog

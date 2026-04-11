@@ -170,7 +170,7 @@ func HandleStartSingleDiscovery(h *core.Handler, w http.ResponseWriter, r *http.
 		defer cancel()
 
 		log.Printf("Starting background discovery for feed: %s (%s)", targetFeed.Title, targetFeed.URL)
-		discovered, err := h.DiscoveryService.DiscoverFromFeedWithProgress(ctx, targetFeed.URL, progressCb)
+		discovered, failedCandidates, err := h.DiscoveryService.DiscoverFromFeedWithProgressDetailed(ctx, targetFeed.URL, progressCb)
 
 		h.DiscoveryMu.Lock()
 		defer h.DiscoveryMu.Unlock()
@@ -197,6 +197,7 @@ func HandleStartSingleDiscovery(h *core.Handler, w http.ResponseWriter, r *http.
 		}
 
 		h.SingleDiscoveryState.Feeds = filtered
+		h.SingleDiscoveryState.FailedCandidates = failedCandidates
 
 		// Mark the feed as discovered
 		if err := h.DB.MarkFeedDiscovered(req.FeedID); err != nil {

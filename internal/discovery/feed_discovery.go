@@ -17,6 +17,12 @@ func (s *Service) DiscoverFromFeed(ctx context.Context, feedURL string) ([]Disco
 
 // DiscoverFromFeedWithProgress discovers blogs from a feed's homepage with progress updates
 func (s *Service) DiscoverFromFeedWithProgress(ctx context.Context, feedURL string, progressCb ProgressCallback) ([]DiscoveredBlog, error) {
+	discovered, _, err := s.DiscoverFromFeedWithProgressDetailed(ctx, feedURL, progressCb)
+	return discovered, err
+}
+
+// DiscoverFromFeedWithProgressDetailed discovers blogs and records per-candidate failures.
+func (s *Service) DiscoverFromFeedWithProgressDetailed(ctx context.Context, feedURL string, progressCb ProgressCallback) ([]DiscoveredBlog, []FailedCandidate, error) {
 	// Report progress: fetching homepage
 	if progressCb != nil {
 		progressCb(Progress{
@@ -29,7 +35,7 @@ func (s *Service) DiscoverFromFeedWithProgress(ctx context.Context, feedURL stri
 	// First, try to parse the feed to get the homepage link
 	homepage, err := s.getFeedHomepage(ctx, feedURL)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get homepage from feed: %w", err)
+		return nil, nil, fmt.Errorf("failed to get homepage from feed: %w", err)
 	}
 
 	// Report progress: finding friend links
@@ -44,11 +50,11 @@ func (s *Service) DiscoverFromFeedWithProgress(ctx context.Context, feedURL stri
 	// Fetch the homepage HTML
 	friendLinks, err := s.findFriendLinksWithProgress(ctx, homepage, progressCb)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find friend links: %w", err)
+		return nil, nil, fmt.Errorf("failed to find friend links: %w", err)
 	}
 
 	if len(friendLinks) == 0 {
-		return []DiscoveredBlog{}, nil
+		return []DiscoveredBlog{}, []FailedCandidate{}, nil
 	}
 
 	// Report progress: checking RSS feeds
@@ -61,9 +67,9 @@ func (s *Service) DiscoverFromFeedWithProgress(ctx context.Context, feedURL stri
 	}
 
 	// Discover RSS feeds from friend links (concurrent)
-	discovered := s.discoverRSSFeedsWithProgress(ctx, friendLinks, progressCb)
+	discovered, failed := s.discoverRSSFeedsWithProgressDetailed(ctx, friendLinks, progressCb)
 
-	return discovered, nil
+	return discovered, failed, nil
 }
 
 // getFeedHomepage extracts the homepage URL from a feed
