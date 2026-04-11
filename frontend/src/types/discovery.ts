@@ -13,6 +13,12 @@ export interface DiscoveredFeed {
   }>;
 }
 
+export interface FailedCandidate {
+  url: string;
+  stage: string;
+  reason: string;
+}
+
 export interface ProgressCounts {
   current: number;
   total: number;
@@ -29,6 +35,7 @@ export interface ProgressState {
   is_complete: boolean;
   error?: string;
   feeds?: DiscoveredFeed[];
+  failed_candidates?: FailedCandidate[];
   progress?: {
     stage: string;
     message?: string;

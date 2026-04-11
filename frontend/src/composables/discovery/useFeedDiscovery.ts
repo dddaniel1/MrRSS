@@ -1,13 +1,38 @@
 import { ref, type Ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import type { Feed } from '@/types/models';
-import type { DiscoveredFeed, ProgressCounts, ProgressState } from '@/types/discovery';
+import type { DiscoveredFeed, FailedCandidate, ProgressCounts, ProgressState } from '@/types/discovery';
 
-export function useFeedDiscovery(feed: Feed) {
+export type DiscoveryMode = 'discover' | 'recommend';
+
+export function mapRecommendationErrorCode(
+  t: (key: string) => string,
+  errorCode: string,
+): string {
+  switch (errorCode) {
+    case 'recommendation_ai_not_configured':
+      return t('modal.discovery.recommendationAiNotConfigured');
+    case 'recommendation_ai_generation_failed':
+      return t('modal.discovery.recommendationAiGenerationFailed');
+    case 'recommendation_invalid_candidates':
+      return t('modal.discovery.recommendationInvalidCandidates');
+    case 'recommendation_validation_failed':
+      return t('modal.discovery.recommendationValidationFailed');
+    case 'recommendation_validation_timed_out':
+      return t('modal.discovery.recommendationValidationTimedOut');
+    case 'recommendation_feed_not_found':
+      return t('modal.discovery.recommendationFeedNotFound');
+    default:
+      return t('modal.discovery.discoveryFailed') + ': ' + errorCode;
+  }
+}
+
+export function useFeedDiscovery(feed: Feed, mode: DiscoveryMode = 'discover') {
   const { t } = useI18n();
 
   const isDiscovering = ref(false);
   const discoveredFeeds: Ref<DiscoveredFeed[]> = ref([]);
+  const failedCandidates: Ref<FailedCandidate[]> = ref([]);
   const errorMessage = ref('');
   const progressMessage = ref('');
   const progressDetail = ref('');
@@ -22,11 +47,17 @@ export function useFeedDiscovery(feed: Feed) {
     }
   }
 
+  function getRecommendationErrorMessage(errorCode: string): string {
+    return mapRecommendationErrorCode((key) => t(key), errorCode);
+  }
+
   async function startDiscovery() {
     isDiscovering.value = true;
     errorMessage.value = '';
     discoveredFeeds.value = [];
-    progressMessage.value = t('modal.discovery.fetchingHomepage');
+    failedCandidates.value = [];
+    progressMessage.value =
+      mode === 'recommend' ? t('modal.discovery.analyzingFeed') : t('modal.discovery.fetchingHomepage');
     progressDetail.value = '';
     progressCounts.value = { current: 0, total: 0, found: 0 };
 
@@ -42,11 +73,18 @@ export function useFeedDiscovery(feed: Feed) {
         throw new Error('Invalid feed ID');
       }
 
-      // Clear any previous discovery state
-      await fetch('/api/feeds/discover/clear', { method: 'POST' });
+      const clearEndpoint =
+        mode === 'recommend' ? '/api/feeds/recommend/clear' : '/api/feeds/discover/clear';
+      const startEndpoint =
+        mode === 'recommend' ? '/api/feeds/recommend/start' : '/api/feeds/discover/start';
+      const progressEndpoint =
+        mode === 'recommend' ? '/api/feeds/recommend/progress' : '/api/feeds/discover/progress';
 
-      // Start discovery in background
-      const startResponse = await fetch('/api/feeds/discover/start', {
+      // Clear any previous state
+      await fetch(clearEndpoint, { method: 'POST' });
+
+      // Start discovery/recommendation in background
+      const startResponse = await fetch(startEndpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ feed_id: feed.id }),
@@ -60,7 +98,7 @@ export function useFeedDiscovery(feed: Feed) {
       // Start polling for progress
       pollInterval = setInterval(async () => {
         try {
-          const progressResponse = await fetch('/api/feeds/discover/progress');
+          const progressResponse = await fetch(progressEndpoint);
           if (!progressResponse.ok) {
             throw new Error('Failed to get progress');
           }
@@ -97,6 +135,24 @@ export function useFeedDiscovery(feed: Feed) {
                 progressCounts.value.total = progress.total || 0;
                 progressCounts.value.found = progress.found_count || 0;
                 break;
+              case 'analyzing_feed':
+                progressMessage.value = t('modal.discovery.analyzingFeed');
+                progressDetail.value = progress.detail || '';
+                break;
+              case 'generating_candidates':
+                progressMessage.value = t('modal.discovery.findingSimilarFeeds');
+                progressDetail.value = progress.detail ? getHostname(progress.detail) : '';
+                progressCounts.value.current = progress.current || 0;
+                progressCounts.value.total = progress.total || 0;
+                progressCounts.value.found = progress.found_count || 0;
+                break;
+              case 'validating_candidates':
+                progressMessage.value = t('modal.discovery.aiRankingFeeds');
+                progressDetail.value = progress.detail ? getHostname(progress.detail) : '';
+                progressCounts.value.current = progress.current || 0;
+                progressCounts.value.total = progress.total || 0;
+                progressCounts.value.found = progress.found_count || 0;
+                break;
               default:
                 progressMessage.value = progress.message || t('modal.discovery.discovering');
                 progressDetail.value = progress.detail ? getHostname(progress.detail) : '';
@@ -111,11 +167,18 @@ export function useFeedDiscovery(feed: Feed) {
             }
 
             if (state.error) {
-              errorMessage.value = t('modal.discovery.discoveryFailed') + ': ' + state.error;
+              errorMessage.value =
+                mode === 'recommend'
+                  ? getRecommendationErrorMessage(state.error)
+                  : t('modal.discovery.discoveryFailed') + ': ' + state.error;
             } else {
               discoveredFeeds.value = state.feeds || [];
-              if (discoveredFeeds.value.length === 0) {
-                errorMessage.value = t('modal.discovery.noFriendLinksFound');
+              failedCandidates.value = state.failed_candidates || [];
+              if (discoveredFeeds.value.length === 0 && failedCandidates.value.length === 0) {
+                errorMessage.value =
+                  mode === 'recommend'
+                    ? t('modal.discovery.noRecommendedFeeds')
+                    : t('modal.discovery.noFriendLinksFound');
               }
             }
 
@@ -123,8 +186,8 @@ export function useFeedDiscovery(feed: Feed) {
             progressMessage.value = '';
             progressDetail.value = '';
 
-            // Clear the discovery state
-            await fetch('/api/feeds/discover/clear', { method: 'POST' });
+            // Clear the server state
+            await fetch(clearEndpoint, { method: 'POST' });
           }
         } catch (pollError) {
           console.error('Polling error:', pollError);
@@ -149,13 +212,16 @@ export function useFeedDiscovery(feed: Feed) {
       clearInterval(pollInterval);
       pollInterval = null;
     }
-    // Clear discovery state on server
-    fetch('/api/feeds/discover/clear', { method: 'POST' }).catch(() => {});
+    // Clear discovery/recommendation state on server
+    const clearEndpoint =
+      mode === 'recommend' ? '/api/feeds/recommend/clear' : '/api/feeds/discover/clear';
+    fetch(clearEndpoint, { method: 'POST' }).catch(() => {});
   }
 
   return {
     isDiscovering,
     discoveredFeeds,
+    failedCandidates,
     errorMessage,
     progressMessage,
     progressDetail,
