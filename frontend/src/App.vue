@@ -35,6 +35,8 @@ const feedToEdit = ref<Feed | null>(null);
 const showSettings = ref(false);
 const showDiscoverBlogs = ref(false);
 const feedToDiscover = ref<Feed | null>(null);
+const showRecommendFeeds = ref(false);
+const feedToRecommend = ref<Feed | null>(null);
 const isSidebarOpen = ref(true);
 
 // Check if we're in image gallery mode
@@ -53,7 +55,6 @@ const {
   sidebarWidth,
   articleListWidth,
   startResizeArticleList,
-  setArticleListWidth,
   setCompactMode,
 } = useResizablePanels();
 
@@ -221,8 +222,13 @@ window.addEventListener('show-discover-blogs', (e) => {
   feedToDiscover.value = customEvent.detail;
   showDiscoverBlogs.value = true;
 });
+window.addEventListener('show-recommend-feeds', (e) => {
+  const customEvent = e as CustomEvent<any>;
+  feedToRecommend.value = customEvent.detail;
+  showRecommendFeeds.value = true;
+});
 
-// Listen for compact mode changes to update article list width
+// Listen for compact mode changes to keep resize behavior in sync
 window.addEventListener('compact-mode-changed', (e) => {
   const customEvent = e as CustomEvent<{ enabled: boolean }>;
   const enabled = customEvent.detail.enabled;
@@ -329,6 +335,13 @@ function onFeedUpdated(): void {
       :feed="feedToDiscover"
       :show="showDiscoverBlogs"
       @close="showDiscoverBlogs = false"
+    />
+    <DiscoverFeedsModal
+      v-if="showRecommendFeeds && feedToRecommend"
+      :feed="feedToRecommend"
+      :show="showRecommendFeeds"
+      mode="recommend"
+      @close="showRecommendFeeds = false"
     />
 
     <UpdateAvailableDialog

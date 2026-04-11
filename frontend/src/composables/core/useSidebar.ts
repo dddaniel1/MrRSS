@@ -330,6 +330,8 @@ export function useSidebar() {
       }
     } else if (action === 'discover') {
       window.dispatchEvent(new CustomEvent('show-discover-blogs', { detail: feed }));
+    } else if (action === 'recommend') {
+      window.dispatchEvent(new CustomEvent('show-recommend-feeds', { detail: feed }));
     }
   }
 
@@ -382,6 +384,11 @@ export function useSidebar() {
         label: t('modal.discovery.discoverFeeds'),
         action: 'discover',
         icon: 'PhBinoculars',
+      });
+      items.push({
+        label: t('modal.discovery.recommendFeeds'),
+        action: 'recommend',
+        icon: 'PhSparkle',
       });
     }
 
