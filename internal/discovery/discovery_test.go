@@ -229,7 +229,7 @@ func TestFindRSSFeed_LinkInHead(t *testing.T) {
 	defer srv.Close()
 
 	s := newServiceWithClient(srv.Client())
-	feedURL, err := s.findRSSFeed(context.Background(), srv.URL)
+	feedURL, _, err := s.findRSSFeed(context.Background(), srv.URL)
 	if err != nil {
 		t.Fatalf("findRSSFeed error: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestFindRSSFeed_DeterministicCommonPathPriority(t *testing.T) {
 	defer srv.Close()
 
 	s := newServiceWithClient(srv.Client())
-	feedURL, err := s.findRSSFeed(context.Background(), srv.URL)
+	feedURL, _, err := s.findRSSFeed(context.Background(), srv.URL)
 	if err != nil {
 		t.Fatalf("findRSSFeed error: %v", err)
 	}
@@ -345,5 +345,26 @@ func TestGetFaviconAndResolveURLAndExtractLinks(t *testing.T) {
 	resolved := s.resolveURL(srv.URL, "/a/b")
 	if !strings.HasPrefix(resolved, srv.URL) {
 		t.Fatalf("resolveURL failed: %s", resolved)
+	}
+}
+
+
+func TestFindRSSFeed_DirectFeedURL(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/rss+xml")
+		w.WriteHeader(200)
+		_, _ = w.Write([]byte(`<?xml version="1.0"?><rss><channel><title>Direct Feed</title></channel></rss>`))
+	}))
+	defer srv.Close()
+
+	s := NewService()
+	s.client = srv.Client()
+	
+	feedURL, _, err := s.findRSSFeed(context.Background(), srv.URL)
+	if err != nil {
+		t.Fatalf("findRSSFeed error: %v", err)
+	}
+	if feedURL != srv.URL {
+		t.Fatalf("expected feed URL to be same as input, got %s", feedURL)
 	}
 }

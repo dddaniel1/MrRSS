@@ -76,7 +76,31 @@ OuterLoop:
 				progressMu.Unlock()
 				results <- blog
 			} else {
-				failures <- FailedCandidate{URL: u, Stage: "checking_rss", Reason: err.Error()}
+				// Extract debug info from error message
+				candidate := FailedCandidate{URL: u, Stage: "checking_rss", Reason: err.Error()}
+				// Try to extract attempted URLs and detected feed from error
+				errStr := err.Error()
+				if strings.Contains(errStr, "attempted_urls=") {
+					idx := strings.Index(errStr, "attempted_urls=")
+					if idx >= 0 {
+						start := idx + len("attempted_urls=")
+						end := strings.Index(errStr[start:], ";")
+						if end > 0 {
+							candidate.AttemptedURLs = strings.Split(errStr[start:start+end], ",")
+						}
+					}
+				}
+				if strings.Contains(errStr, "detected_feed=") {
+					idx := strings.Index(errStr, "detected_feed=")
+					if idx >= 0 {
+						start := idx + len("detected_feed=")
+						candidate.DetectedFeedURL = errStr[start:]
+						if semIdx := strings.Index(candidate.DetectedFeedURL, ";"); semIdx > 0 {
+							candidate.DetectedFeedURL = candidate.DetectedFeedURL[:semIdx]
+						}
+					}
+				}
+				failures <- candidate
 			}
 		}(blogURL)
 	}
@@ -102,15 +126,16 @@ OuterLoop:
 // discoverBlogRSS discovers RSS feed for a single blog
 func (s *Service) discoverBlogRSS(ctx context.Context, blogURL string) (DiscoveredBlog, error) {
 	// Try to find RSS feed URL
-	rssURL, err := s.findRSSFeed(ctx, blogURL)
+	rssURL, debugInfo, err := s.findRSSFeed(ctx, blogURL)
 	if err != nil {
-		return DiscoveredBlog{}, err
+		// Include debug info in error message for richer failure reporting
+		return DiscoveredBlog{}, fmt.Errorf("%s; attempted_urls=%s; detected_feed=%s", err.Error(), debugInfo.attemptedURLs, debugInfo.detectedFeed)
 	}
 
 	// Parse the RSS feed to get blog info
 	feed, err := s.feedParser.ParseURLWithContext(rssURL, ctx)
 	if err != nil {
-		return DiscoveredBlog{}, err
+		return DiscoveredBlog{}, fmt.Errorf("parse feed: %w", err)
 	}
 
 	// Extract recent articles (max 3)
@@ -140,12 +165,29 @@ func (s *Service) discoverBlogRSS(ctx context.Context, blogURL string) (Discover
 	}, nil
 }
 
+// rssFeedDebug holds debug information during RSS feed discovery
+type rssFeedDebug struct {
+	attemptedURLs  []string // All URLs that were tried
+	detectedFeed   string   // Feed URL detected from HTML (if any)
+	validateErrors []string // Errors encountered during validation
+}
+
 // findRSSFeed finds the RSS feed URL for a blog
-func (s *Service) findRSSFeed(ctx context.Context, blogURL string) (string, error) {
+func (s *Service) findRSSFeed(ctx context.Context, blogURL string) (string, rssFeedDebug, error) {
+	debug := rssFeedDebug{
+		attemptedURLs: []string{blogURL},
+	}
+
+	// First, check if the URL itself is already a valid feed.
+	// This handles cases where the user provides a direct feed URL instead of a homepage.
+	if s.isValidFeed(ctx, blogURL) {
+		return blogURL, debug, nil
+	}
+
 	// Common RSS feed paths to try
 	u, err := url.Parse(blogURL)
 	if err != nil {
-		return "", err
+		return "", debug, fmt.Errorf("parse URL: %w", err)
 	}
 
 	baseURL := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
@@ -164,8 +206,14 @@ func (s *Service) findRSSFeed(ctx context.Context, blogURL string) (string, erro
 			}
 		})
 
+		// Record detected feed URL
+		debug.detectedFeed = foundFeed
+
 		if foundFeed != "" && s.isValidFeed(ctx, foundFeed) {
-			return foundFeed, nil
+			return foundFeed, debug, nil
+		}
+		if foundFeed != "" {
+			debug.validateErrors = append(debug.validateErrors, fmt.Sprintf("detected feed %s failed validation", foundFeed))
 		}
 	}
 
@@ -194,6 +242,9 @@ func (s *Service) findRSSFeed(ctx context.Context, blogURL string) (string, erro
 		"/feed.rss",
 	}
 	candidatePaths := buildCandidateFeedURLs(baseURL, originalBase, commonPaths)
+
+	// Add candidate paths to attempted URLs
+	debug.attemptedURLs = append(debug.attemptedURLs, candidatePaths...)
 
 	// Try common paths concurrently for faster discovery, but choose deterministically.
 	resultCh := make(chan string, len(candidatePaths))
@@ -228,10 +279,13 @@ func (s *Service) findRSSFeed(ctx context.Context, blogURL string) (string, erro
 		sort.SliceStable(validFeeds, func(i, j int) bool {
 			return feedPriority(validFeeds[i], candidatePaths) < feedPriority(validFeeds[j], candidatePaths)
 		})
-		return validFeeds[0], nil
+		return validFeeds[0], debug, nil
 	}
 
-	return "", errRSSFeedNotFound
+	// No valid feed found - add to validate errors
+	debug.validateErrors = append(debug.validateErrors, "no valid feed found in any attempted URL")
+
+	return "", debug, errRSSFeedNotFound
 }
 
 // isValidFeed checks if a URL is a valid RSS/Atom feed
@@ -240,6 +294,8 @@ func (s *Service) isValidFeed(ctx context.Context, feedURL string) bool {
 	if err != nil {
 		return false
 	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
@@ -260,6 +316,8 @@ func (s *Service) isValidFeedByGET(ctx context.Context, feedURL string) bool {
 	if err != nil {
 		return false
 	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
