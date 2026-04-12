@@ -17,6 +17,9 @@ export interface FailedCandidate {
   url: string;
   stage: string;
   reason: string;
+  attempted_urls?: string[];
+  detected_feed_url?: string;
+  raw_error?: string;
 }
 
 export interface ProgressCounts {

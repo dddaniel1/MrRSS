@@ -43,9 +43,12 @@ type DiscoveredBlog struct {
 
 // FailedCandidate represents a candidate website/feed that could not be resolved into a valid subscription.
 type FailedCandidate struct {
-	URL    string `json:"url"`
-	Stage  string `json:"stage"`
-	Reason string `json:"reason"`
+	URL             string   `json:"url"`
+	Stage           string   `json:"stage"`
+	Reason          string   `json:"reason"`
+	AttemptedURLs   []string `json:"attempted_urls,omitempty"`    // URLs that were tried
+	DetectedFeedURL string   `json:"detected_feed_url,omitempty"` // Feed URL detected (if any)
+	RawError        string   `json:"raw_error,omitempty"`         // Original error message
 }
 
 // RecentArticle represents a recent article with title and date

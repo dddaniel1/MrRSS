@@ -171,7 +171,7 @@ onUnmounted(() => {
               <span class="text-xs text-amber-600 dark:text-amber-400">{{ t('modal.discovery.viewDetails') }}</span>
             </summary>
             <div class="border-t border-amber-200 dark:border-amber-800 px-3 sm:px-4 py-2.5 sm:py-3 space-y-2">
-              <div
+<div
                 v-for="(candidate, index) in failedCandidates"
                 :key="`${candidate.url}-${index}`"
                 class="text-xs sm:text-sm rounded-md bg-bg-primary/70 border border-border p-2.5"
@@ -182,6 +182,25 @@ onUnmounted(() => {
                 </div>
                 <div class="text-text-secondary break-all">
                   {{ t('modal.discovery.failedCandidateReason') }}: {{ candidate.reason }}
+                </div>
+                <!-- Debug info: Attempted URLs -->
+                <div v-if="candidate.attempted_urls && candidate.attempted_urls.length > 0" class="mt-1.5 text-accent">
+                  <div class="font-medium">{{ t('modal.discovery.attemptedURLs') }}:</div>
+                  <div class="mt-0.5 space-y-0.5 max-h-20 overflow-y-auto">
+                    <div v-for="(url, uidx) in candidate.attempted_urls.slice(0, 5)" :key="uidx" class="text-text-secondary break-all text-[10px]">
+                      {{ uidx + 1 }}. {{ url }}
+                    </div>
+                    <div v-if="candidate.attempted_urls.length > 5" class="text-text-secondary text-[10px]">
+                      ... +{{ candidate.attempted_urls.length - 5 }} more
+                    </div>
+                  </div>
+                </div>
+                <!-- Debug info: Detected feed URL -->
+                <div v-if="candidate.detected_feed_url" class="mt-1.5 text-accent">
+                  <div class="font-medium">{{ t('modal.discovery.detectedFeedURL') }}:</div>
+                  <div class="text-text-secondary break-all text-[10px] mt-0.5">
+                    {{ candidate.detected_feed_url }}
+                  </div>
                 </div>
               </div>
             </div>
