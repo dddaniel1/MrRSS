@@ -22,6 +22,7 @@ const {
   imageViewerAlt,
   imageViewerImages,
   imageViewerInitialIndex,
+  eagleEnabled,
   hasPreviousArticle,
   hasNextArticle,
   close,
@@ -33,6 +34,8 @@ const {
   closeImageViewer,
   attachImageEventListeners,
   exportToObsidian,
+  saveImageToEagle,
+  saveArticleImagesToEagle,
   handleRetryLoadContent,
   goToPreviousArticle,
   goToNextArticle,
@@ -155,6 +158,7 @@ onBeforeUnmount(() => {
         @translate-original="handleTranslateOriginal"
         @toggle-translations="toggleTranslations"
         @export-to-obsidian="exportToObsidian"
+        @save-all-images-to-eagle="saveArticleImagesToEagle"
       />
 
       <!-- Original webpage view -->
@@ -226,7 +230,9 @@ onBeforeUnmount(() => {
       :alt="imageViewerAlt"
       :images="imageViewerImages"
       :initial-index="imageViewerInitialIndex"
+      :show-save-to-eagle="eagleEnabled"
       @close="closeImageViewer"
+      @save-to-eagle="saveImageToEagle"
     />
   </main>
 </template>

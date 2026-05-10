@@ -88,6 +88,15 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		deeplApiKey := safeGetEncryptedSetting(h, "deepl_api_key")
 		deeplEndpoint := safeGetSetting(h, "deepl_endpoint")
 		defaultViewMode := safeGetSetting(h, "default_view_mode")
+		eagleApiUrl := safeGetSetting(h, "eagle_api_url")
+		eagleEnabled := safeGetSetting(h, "eagle_enabled")
+		eagleFolderId := safeGetSetting(h, "eagle_folder_id")
+		eagleFolderName := safeGetSetting(h, "eagle_folder_name")
+		eagleIncludeFeedTag := safeGetSetting(h, "eagle_include_feed_tag")
+		eagleMaxBatchSize := safeGetSetting(h, "eagle_max_batch_size")
+		eagleNameTemplate := safeGetSetting(h, "eagle_name_template")
+		eagleTags := safeGetSetting(h, "eagle_tags")
+		eagleTimeoutSeconds := safeGetSetting(h, "eagle_timeout_seconds")
 		feedDrawerExpanded := safeGetSetting(h, "feed_drawer_expanded")
 		feedDrawerPinned := safeGetSetting(h, "feed_drawer_pinned")
 		freshrssApiPassword := safeGetEncryptedSetting(h, "freshrss_api_password")
@@ -197,6 +206,15 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 			"deepl_api_key":                    deeplApiKey,
 			"deepl_endpoint":                   deeplEndpoint,
 			"default_view_mode":                defaultViewMode,
+			"eagle_api_url":                    eagleApiUrl,
+			"eagle_enabled":                    eagleEnabled,
+			"eagle_folder_id":                  eagleFolderId,
+			"eagle_folder_name":                eagleFolderName,
+			"eagle_include_feed_tag":           eagleIncludeFeedTag,
+			"eagle_max_batch_size":             eagleMaxBatchSize,
+			"eagle_name_template":              eagleNameTemplate,
+			"eagle_tags":                       eagleTags,
+			"eagle_timeout_seconds":            eagleTimeoutSeconds,
 			"feed_drawer_expanded":             feedDrawerExpanded,
 			"feed_drawer_pinned":               feedDrawerPinned,
 			"freshrss_api_password":            freshrssApiPassword,
@@ -308,6 +326,15 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 			DeeplAPIKey                   string `json:"deepl_api_key"`
 			DeeplEndpoint                 string `json:"deepl_endpoint"`
 			DefaultViewMode               string `json:"default_view_mode"`
+			EagleAPIUrl                   string `json:"eagle_api_url"`
+			EagleEnabled                  string `json:"eagle_enabled"`
+			EagleFolderId                 string `json:"eagle_folder_id"`
+			EagleFolderName               string `json:"eagle_folder_name"`
+			EagleIncludeFeedTag           string `json:"eagle_include_feed_tag"`
+			EagleMaxBatchSize             string `json:"eagle_max_batch_size"`
+			EagleNameTemplate             string `json:"eagle_name_template"`
+			EagleTags                     string `json:"eagle_tags"`
+			EagleTimeoutSeconds           string `json:"eagle_timeout_seconds"`
 			FeedDrawerExpanded            string `json:"feed_drawer_expanded"`
 			FeedDrawerPinned              string `json:"feed_drawer_pinned"`
 			FreshRSSAPIPassword           string `json:"freshrss_api_password"`
@@ -552,6 +579,42 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 
 		if req.DefaultViewMode != "" {
 			h.DB.SetSetting("default_view_mode", req.DefaultViewMode)
+		}
+
+		if req.EagleAPIUrl != "" {
+			h.DB.SetSetting("eagle_api_url", req.EagleAPIUrl)
+		}
+
+		if req.EagleEnabled != "" {
+			h.DB.SetSetting("eagle_enabled", req.EagleEnabled)
+		}
+
+		if req.EagleFolderId != "" {
+			h.DB.SetSetting("eagle_folder_id", req.EagleFolderId)
+		}
+
+		if req.EagleFolderName != "" {
+			h.DB.SetSetting("eagle_folder_name", req.EagleFolderName)
+		}
+
+		if req.EagleIncludeFeedTag != "" {
+			h.DB.SetSetting("eagle_include_feed_tag", req.EagleIncludeFeedTag)
+		}
+
+		if req.EagleMaxBatchSize != "" {
+			h.DB.SetSetting("eagle_max_batch_size", req.EagleMaxBatchSize)
+		}
+
+		if req.EagleNameTemplate != "" {
+			h.DB.SetSetting("eagle_name_template", req.EagleNameTemplate)
+		}
+
+		if req.EagleTags != "" {
+			h.DB.SetSetting("eagle_tags", req.EagleTags)
+		}
+
+		if req.EagleTimeoutSeconds != "" {
+			h.DB.SetSetting("eagle_timeout_seconds", req.EagleTimeoutSeconds)
 		}
 
 		if req.FeedDrawerExpanded != "" {
@@ -800,9 +863,17 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.DB.SetSetting("webdav_remote_path", req.WebdavRemotePath)
-		h.DB.SetSetting("webdav_url", req.WebdavUrl)
-		h.DB.SetSetting("webdav_username", req.WebdavUsername)
+		if req.WebdavRemotePath != "" {
+			h.DB.SetSetting("webdav_remote_path", req.WebdavRemotePath)
+		}
+
+		if req.WebdavUrl != "" {
+			h.DB.SetSetting("webdav_url", req.WebdavUrl)
+		}
+
+		if req.WebdavUsername != "" {
+			h.DB.SetSetting("webdav_username", req.WebdavUsername)
+		}
 
 		if req.WindowHeight != "" {
 			h.DB.SetSetting("window_height", req.WindowHeight)
@@ -865,6 +936,15 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 		deeplApiKey := safeGetEncryptedSetting(h, "deepl_api_key")
 		deeplEndpoint := safeGetSetting(h, "deepl_endpoint")
 		defaultViewMode := safeGetSetting(h, "default_view_mode")
+		eagleApiUrl := safeGetSetting(h, "eagle_api_url")
+		eagleEnabled := safeGetSetting(h, "eagle_enabled")
+		eagleFolderId := safeGetSetting(h, "eagle_folder_id")
+		eagleFolderName := safeGetSetting(h, "eagle_folder_name")
+		eagleIncludeFeedTag := safeGetSetting(h, "eagle_include_feed_tag")
+		eagleMaxBatchSize := safeGetSetting(h, "eagle_max_batch_size")
+		eagleNameTemplate := safeGetSetting(h, "eagle_name_template")
+		eagleTags := safeGetSetting(h, "eagle_tags")
+		eagleTimeoutSeconds := safeGetSetting(h, "eagle_timeout_seconds")
 		feedDrawerExpanded := safeGetSetting(h, "feed_drawer_expanded")
 		feedDrawerPinned := safeGetSetting(h, "feed_drawer_pinned")
 		freshrssApiPassword := safeGetEncryptedSetting(h, "freshrss_api_password")
@@ -974,6 +1054,15 @@ func HandleSettings(h *core.Handler, w http.ResponseWriter, r *http.Request) {
 			"deepl_api_key":                    deeplApiKey,
 			"deepl_endpoint":                   deeplEndpoint,
 			"default_view_mode":                defaultViewMode,
+			"eagle_api_url":                    eagleApiUrl,
+			"eagle_enabled":                    eagleEnabled,
+			"eagle_folder_id":                  eagleFolderId,
+			"eagle_folder_name":                eagleFolderName,
+			"eagle_include_feed_tag":           eagleIncludeFeedTag,
+			"eagle_max_batch_size":             eagleMaxBatchSize,
+			"eagle_name_template":              eagleNameTemplate,
+			"eagle_tags":                       eagleTags,
+			"eagle_timeout_seconds":            eagleTimeoutSeconds,
 			"feed_drawer_expanded":             feedDrawerExpanded,
 			"feed_drawer_pinned":               feedDrawerPinned,
 			"freshrss_api_password":            freshrssApiPassword,

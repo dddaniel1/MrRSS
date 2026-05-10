@@ -14,6 +14,7 @@ import {
   PhTranslate,
   PhSpinnerGap,
   PhShareNetwork,
+  PhImage,
 } from '@phosphor-icons/vue';
 import type { Article } from '@/types/models';
 
@@ -52,6 +53,7 @@ defineEmits<{
   translateOriginal: [];
   toggleTranslations: [];
   exportToObsidian: [];
+  saveAllImagesToEagle: [];
 }>();
 </script>
 
@@ -159,6 +161,14 @@ defineEmits<{
         @click="$emit('exportToObsidian')"
       >
         <PhShareNetwork :size="18" class="sm:w-5 sm:h-5" />
+      </button>
+      <button
+        v-if="settings.eagle_enabled"
+        class="action-btn"
+        :title="t('common.contextMenu.saveAllImagesToEagle')"
+        @click="$emit('saveAllImagesToEagle')"
+      >
+        <PhImage :size="18" class="sm:w-5 sm:h-5" />
       </button>
     </div>
   </div>

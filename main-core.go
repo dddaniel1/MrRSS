@@ -28,6 +28,7 @@ import (
 	handlers "MrRSS/internal/handlers/core"
 	customcss "MrRSS/internal/handlers/custom_css"
 	discovery "MrRSS/internal/handlers/discovery"
+	eagle "MrRSS/internal/handlers/eagle"
 	feedhandlers "MrRSS/internal/handlers/feed"
 	freshrssHandler "MrRSS/internal/handlers/freshrss"
 	media "MrRSS/internal/handlers/media"
@@ -239,6 +240,9 @@ func main() {
 	apiMux.HandleFunc("/api/articles/summarize", func(w http.ResponseWriter, r *http.Request) { summary.HandleSummarizeArticle(h, w, r) })
 	apiMux.HandleFunc("/api/articles/clear-summaries", func(w http.ResponseWriter, r *http.Request) { summary.HandleClearSummaries(h, w, r) })
 	apiMux.HandleFunc("/api/articles/export/obsidian", func(w http.ResponseWriter, r *http.Request) { article.HandleExportToObsidian(h, w, r) })
+	apiMux.HandleFunc("/api/eagle/save-images", func(w http.ResponseWriter, r *http.Request) { eagle.HandleSaveImages(h, w, r) })
+	apiMux.HandleFunc("/api/eagle/folders", func(w http.ResponseWriter, r *http.Request) { eagle.HandleListFolders(h, w, r) })
+	apiMux.HandleFunc("/api/eagle/test", func(w http.ResponseWriter, r *http.Request) { eagle.HandleTestConnection(h, w, r) })
 	apiMux.HandleFunc("/api/settings", func(w http.ResponseWriter, r *http.Request) { settings.HandleSettings(h, w, r) })
 	apiMux.HandleFunc("/api/refresh", func(w http.ResponseWriter, r *http.Request) { article.HandleRefresh(h, w, r) })
 	apiMux.HandleFunc("/api/progress", func(w http.ResponseWriter, r *http.Request) { article.HandleProgress(h, w, r) })

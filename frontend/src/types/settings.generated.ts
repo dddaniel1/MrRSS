@@ -46,6 +46,15 @@ export interface SettingsData {
   deepl_api_key: string;
   deepl_endpoint: string;
   default_view_mode: string;
+  eagle_api_url: string;
+  eagle_enabled: boolean;
+  eagle_folder_id: string;
+  eagle_folder_name: string;
+  eagle_include_feed_tag: boolean;
+  eagle_max_batch_size: number;
+  eagle_name_template: string;
+  eagle_tags: string;
+  eagle_timeout_seconds: number;
   feed_drawer_expanded: boolean;
   feed_drawer_pinned: boolean;
   freshrss_api_password: string;

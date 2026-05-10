@@ -17,12 +17,16 @@ import {
   PhMagnifyingGlassMinus,
   PhEnvelope,
   PhEnvelopeOpen,
+  PhBookmarkSimple,
 } from '@phosphor-icons/vue';
 import { openInBrowser } from '@/utils/browser';
 import { getProxiedMediaUrl } from '@/utils/mediaProxy';
+import { saveImagesToEagle, type EagleImagePayload } from '@/utils/eagle';
+import { useSettings } from '@/composables/core/useSettings';
 
 const store = useAppStore();
 const { t } = useI18n();
+const { settings, fetchSettings } = useSettings();
 
 interface Props {
   isSidebarOpen?: boolean;
@@ -120,12 +124,15 @@ function calculateMasonryColumnCount(width: number): number {
     return 1;
   }
 
-  const rawCount = Math.floor((width + GALLERY_COLUMN_GAP) / (GALLERY_MIN_COLUMN_WIDTH + GALLERY_COLUMN_GAP));
+  const rawCount = Math.floor(
+    (width + GALLERY_COLUMN_GAP) / (GALLERY_MIN_COLUMN_WIDTH + GALLERY_COLUMN_GAP)
+  );
   return Math.min(GALLERY_MAX_COLUMNS, Math.max(1, rawCount));
 }
 
 function updateMasonryColumnCount() {
-  const width = galleryContentRef.value?.clientWidth || containerRef.value?.clientWidth || window.innerWidth;
+  const width =
+    galleryContentRef.value?.clientWidth || containerRef.value?.clientWidth || window.innerWidth;
   masonryColumnCount.value = calculateMasonryColumnCount(width);
 }
 
@@ -408,7 +415,10 @@ async function changePreviewImage(article: Article, direction: 'prev' | 'next') 
 
   const targetSrc = images[index] || article.image_url || '';
   const proxiedSrc = getProxyImageUrl(article.id, targetSrc);
-  await Promise.race([preloadImage(proxiedSrc), new Promise((resolve) => setTimeout(resolve, 300))]);
+  await Promise.race([
+    preloadImage(proxiedSrc),
+    new Promise((resolve) => setTimeout(resolve, 300)),
+  ]);
 
   setPreviewDirectionCache(article.id, direction);
   setPreviewIndexCache(article.id, index);
@@ -712,6 +722,86 @@ async function downloadImage(src: string) {
   }
 }
 
+async function saveImageToEagle(
+  src: string,
+  targetArticle: Article | null = selectedArticle.value
+) {
+  if (!targetArticle || !src) return;
+  await saveImagesForArticle([{ url: src }], targetArticle);
+}
+
+async function saveAllArticleImagesToEagle(targetArticle: Article | null = selectedArticle.value) {
+  if (!targetArticle) return;
+
+  try {
+    window.showToast(t('common.toast.savingToEagle'), 'info');
+    const images = await fetchPreviewImages(targetArticle);
+    const payloadImages: EagleImagePayload[] = images.length
+      ? images.map((url) => ({ url }))
+      : targetArticle.image_url
+        ? [{ url: targetArticle.image_url }]
+        : [];
+
+    if (payloadImages.length === 0) {
+      window.showToast(t('common.toast.noImagesToSave'), 'info');
+      return;
+    }
+
+    await saveImagesForArticle(
+      payloadImages,
+      targetArticle,
+      feedUrlCache.value.get(targetArticle.id) || ''
+    );
+  } catch (error) {
+    console.error('Failed to save article images to Eagle:', error);
+    window.showToast(
+      error instanceof Error ? error.message : t('common.toast.saveToEagleFailed'),
+      'error'
+    );
+  }
+}
+
+async function saveImagesForArticle(
+  images: EagleImagePayload[],
+  targetArticle: Article,
+  feedURL = ''
+) {
+  try {
+    window.showToast(t('common.toast.savingToEagle'), 'info');
+    const result = await saveImagesToEagle({
+      images,
+      article_title: targetArticle.title,
+      article_url: targetArticle.url,
+      feed_title: targetArticle.feed_title || targetArticle.feed_name || '',
+      feed_url: feedURL,
+    });
+
+    if (result.failed > 0) {
+      window.showToast(
+        t('common.toast.savedToEaglePartial', {
+          success: result.success,
+          total: result.total,
+        }),
+        'warning'
+      );
+      return;
+    }
+
+    window.showToast(
+      t('common.toast.savedToEagle', {
+        count: result.success,
+      }),
+      'success'
+    );
+  } catch (error) {
+    console.error('Failed to save images to Eagle:', error);
+    window.showToast(
+      error instanceof Error ? error.message : t('common.toast.saveToEagleFailed'),
+      'error'
+    );
+  }
+}
+
 // Copy image (convert to PNG)
 async function copyImage(src: string) {
   try {
@@ -968,6 +1058,9 @@ watch(
 );
 
 onMounted(() => {
+  fetchSettings().catch((error) => {
+    console.error('Failed to fetch settings:', error);
+  });
   fetchImages();
   if (containerRef.value) {
     containerRef.value.addEventListener('scroll', handleScroll);
@@ -1200,6 +1293,22 @@ onUnmounted(() => {
             <PhDownloadSimple :size="20" />
           </button>
           <button
+            v-if="settings.eagle_enabled"
+            class="px-2 py-1.5 rounded bg-black/50 hover:bg-black/70 text-white transition-colors"
+            :title="t('common.contextMenu.saveImageToEagle')"
+            @click="saveImageToEagle(currentImageUrl)"
+          >
+            <PhBookmarkSimple :size="20" />
+          </button>
+          <button
+            v-if="settings.eagle_enabled && allImages.length > 1"
+            class="px-2 py-1.5 rounded bg-black/50 hover:bg-black/70 text-white transition-colors"
+            :title="t('common.contextMenu.saveAllImagesToEagle')"
+            @click="saveAllArticleImagesToEagle(selectedArticle)"
+          >
+            <PhImage :size="20" />
+          </button>
+          <button
             class="px-2 py-1.5 rounded bg-black/50 hover:bg-black/70 text-white transition-colors"
             :title="
               selectedArticle.is_favorite
@@ -1419,6 +1528,7 @@ onUnmounted(() => {
         <span>{{ t('common.contextMenu.copyTitle') }}</span>
       </button>
       <button
+        v-if="settings.eagle_enabled"
         class="w-full px-4 py-2 flex items-center gap-3 text-sm text-text-primary hover:bg-bg-tertiary active:bg-bg-secondary transition-colors cursor-pointer"
         @click="
           copyArticleLink(contextMenu.article);
@@ -1432,12 +1542,38 @@ onUnmounted(() => {
       <button
         class="w-full px-4 py-2 flex items-center gap-3 text-sm text-text-primary hover:bg-bg-tertiary active:bg-bg-secondary transition-colors cursor-pointer"
         @click="
-          downloadImage(getProxyImageUrl(contextMenu.article.id, contextMenu.article.image_url || ''));
+          downloadImage(
+            getProxyImageUrl(contextMenu.article.id, contextMenu.article.image_url || '')
+          );
           closeContextMenu();
         "
       >
         <PhDownloadSimple :size="16" />
         <span>{{ t('common.contextMenu.downloadImage') }}</span>
+      </button>
+      <button
+        v-if="settings.eagle_enabled"
+        class="w-full px-4 py-2 flex items-center gap-3 text-sm text-text-primary hover:bg-bg-tertiary active:bg-bg-secondary transition-colors cursor-pointer"
+        @click="
+          saveImageToEagle(
+            getProxyImageUrl(contextMenu.article.id, contextMenu.article.image_url || ''),
+            contextMenu.article
+          );
+          closeContextMenu();
+        "
+      >
+        <PhBookmarkSimple :size="16" />
+        <span>{{ t('common.contextMenu.saveImageToEagle') }}</span>
+      </button>
+      <button
+        class="w-full px-4 py-2 flex items-center gap-3 text-sm text-text-primary hover:bg-bg-tertiary active:bg-bg-secondary transition-colors cursor-pointer"
+        @click="
+          saveAllArticleImagesToEagle(contextMenu.article);
+          closeContextMenu();
+        "
+      >
+        <PhImage :size="16" />
+        <span>{{ t('common.contextMenu.saveAllImagesToEagle') }}</span>
       </button>
       <button
         class="w-full px-4 py-2 flex items-center gap-3 text-sm text-text-primary hover:bg-bg-tertiary active:bg-bg-secondary transition-colors cursor-pointer"

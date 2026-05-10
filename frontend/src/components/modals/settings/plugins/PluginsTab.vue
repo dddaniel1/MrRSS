@@ -10,6 +10,7 @@ import FreshRSSSettings from './FreshRSSSettings.vue';
 import AliPanSettings from './AliPanSettings.vue';
 import RSSHubSettings from './RSSHubSettings.vue';
 import WebDAVSettings from './WebDAVSettings.vue';
+import EagleSettings from './EagleSettings.vue';
 
 interface Props {
   settings: SettingsData;
@@ -41,6 +42,8 @@ function handleUpdateSettings(updatedSettings: SettingsData) {
     <InfoBox :icon="PhInfo" :content="t('common.warning.isInDevelopment')" />
 
     <ObsidianSettings :settings="settings" @update:settings="handleUpdateSettings" />
+
+    <EagleSettings :settings="settings" @update:settings="handleUpdateSettings" />
 
     <FreshRSSSettings :settings="settings" @update:settings="handleUpdateSettings" />
 

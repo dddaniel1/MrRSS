@@ -7,6 +7,7 @@ import {
   PhMagnifyingGlassPlus,
   PhDownloadSimple,
   PhCopy,
+  PhBookmarkSimple,
 } from '@phosphor-icons/vue';
 
 const { t } = useI18n();
@@ -16,16 +17,19 @@ interface Props {
   alt?: string;
   images?: string[];
   initialIndex?: number;
+  showSaveToEagle?: boolean;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   alt: '',
   images: () => [],
   initialIndex: 0,
+  showSaveToEagle: false,
 });
 
 const emit = defineEmits<{
   close: [];
+  saveToEagle: [src: string];
 }>();
 
 interface Position {
@@ -333,6 +337,14 @@ const imageStyle = computed<CSSProperties>(() => ({
         @click="downloadImage"
       >
         <PhDownloadSimple :size="20" />
+      </button>
+      <button
+        v-if="showSaveToEagle"
+        class="control-btn"
+        :title="t('common.contextMenu.saveImageToEagle')"
+        @click="emit('saveToEagle', currentSrc)"
+      >
+        <PhBookmarkSimple :size="20" />
       </button>
     </div>
 

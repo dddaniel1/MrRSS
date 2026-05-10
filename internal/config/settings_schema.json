@@ -571,6 +571,69 @@
       "encrypted": false,
       "frontend_key": "imageGalleryEnabled"
     },
+    "eagle_enabled": {
+      "type": "bool",
+      "default": false,
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "eagleEnabled"
+    },
+    "eagle_api_url": {
+      "type": "string",
+      "default": "http://localhost:41595",
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "eagleApiUrl"
+    },
+    "eagle_folder_id": {
+      "type": "string",
+      "default": "",
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "eagleFolderId"
+    },
+    "eagle_folder_name": {
+      "type": "string",
+      "default": "",
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "eagleFolderName"
+    },
+    "eagle_tags": {
+      "type": "string",
+      "default": "MrRSS",
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "eagleTags"
+    },
+    "eagle_include_feed_tag": {
+      "type": "bool",
+      "default": true,
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "eagleIncludeFeedTag"
+    },
+    "eagle_name_template": {
+      "type": "string",
+      "default": "{title} {timestamp} {index}",
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "eagleNameTemplate"
+    },
+    "eagle_timeout_seconds": {
+      "type": "int",
+      "default": 45,
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "eagleTimeoutSeconds"
+    },
+    "eagle_max_batch_size": {
+      "type": "int",
+      "default": 50,
+      "category": "integrations",
+      "encrypted": false,
+      "frontend_key": "eagleMaxBatchSize"
+    },
     "freshrss_enabled": {
       "type": "bool",
       "default": false,

@@ -3,6 +3,8 @@ import { useAppStore } from '@/stores/app';
 import { useI18n } from 'vue-i18n';
 import { openInBrowser } from '@/utils/browser';
 import { copyToClipboard } from '@/utils/clipboard';
+import { saveImagesToEagle, type EagleImagePayload } from '@/utils/eagle';
+import { useSettings } from '@/composables/core/useSettings';
 import type { Article } from '@/types/models';
 import { proxyImagesInHtml, isMediaCacheEnabled } from '@/utils/mediaProxy';
 import { useGlobalAudioPlayer } from '@/composables/article/useGlobalAudioPlayer';
@@ -25,6 +27,7 @@ interface RenderActionEvent extends Event {
 export function useArticleDetail() {
   const store = useAppStore();
   const { t, locale } = useI18n();
+  const { settings, fetchSettings } = useSettings();
 
   const article = computed<Article | undefined>(() =>
     store.articles.find((a) => a.id === store.currentArticleId)
@@ -240,7 +243,9 @@ export function useArticleDetail() {
   }
 
   function openOriginal() {
-    if (article.value) openInBrowser(article.value.url);
+    if (article.value && article.value.url) {
+      openInBrowser(article.value.url);
+    }
   }
 
   async function toggleContentView() {
@@ -470,6 +475,15 @@ export function useArticleDetail() {
                         action: 'download',
                         icon: 'PhDownloadSimple',
                       },
+                      ...(settings.value.eagle_enabled
+                        ? [
+                            {
+                              label: t('common.contextMenu.saveImageToEagle'),
+                              action: 'saveToEagle',
+                              icon: 'PhBookmarkSimple',
+                            },
+                          ]
+                        : []),
                     ],
                     data: { src: newImg.src },
                     callback: (action: string, data: { src: string }) => {
@@ -482,6 +496,8 @@ export function useArticleDetail() {
                         imageViewerAlt.value = '';
                       } else if (action === 'download') {
                         downloadImage(data.src);
+                      } else if (action === 'saveToEagle') {
+                        saveImageToEagle(data.src);
                       }
                     },
                   },
@@ -750,6 +766,86 @@ export function useArticleDetail() {
     }
   }
 
+  async function saveImageToEagle(src: string) {
+    if (!article.value) return;
+
+    await saveImagesForArticle([{ url: src }], article.value);
+  }
+
+  async function saveArticleImagesToEagle() {
+    if (!article.value) return;
+
+    try {
+      window.showToast(t('common.toast.savingToEagle'), 'info');
+      const response = await fetch(`/api/articles/extract-images?id=${article.value.id}`);
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+
+      const data = await response.json();
+      const images = Array.isArray(data.images) ? data.images : [];
+      const payloadImages: EagleImagePayload[] = images.length
+        ? images.map((url: string) => ({ url }))
+        : article.value.image_url
+          ? [{ url: article.value.image_url }]
+          : [];
+
+      if (payloadImages.length === 0) {
+        window.showToast(t('common.toast.noImagesToSave'), 'info');
+        return;
+      }
+
+      await saveImagesForArticle(payloadImages, article.value, data.feed_url || '');
+    } catch (error) {
+      console.error('Failed to save article images to Eagle:', error);
+      window.showToast(
+        error instanceof Error ? error.message : t('common.toast.saveToEagleFailed'),
+        'error'
+      );
+    }
+  }
+
+  async function saveImagesForArticle(
+    images: EagleImagePayload[],
+    targetArticle: Article,
+    feedURL = ''
+  ) {
+    try {
+      window.showToast(t('common.toast.savingToEagle'), 'info');
+      const result = await saveImagesToEagle({
+        images,
+        article_title: targetArticle.title,
+        article_url: targetArticle.url,
+        feed_title: targetArticle.feed_title || targetArticle.feed_name || '',
+        feed_url: feedURL,
+      });
+
+      if (result.failed > 0) {
+        window.showToast(
+          t('common.toast.savedToEaglePartial', {
+            success: result.success,
+            total: result.total,
+          }),
+          'warning'
+        );
+        return;
+      }
+
+      window.showToast(
+        t('common.toast.savedToEagle', {
+          count: result.success,
+        }),
+        'success'
+      );
+    } catch (error) {
+      console.error('Failed to save images to Eagle:', error);
+      window.showToast(
+        error instanceof Error ? error.message : t('common.toast.saveToEagleFailed'),
+        'error'
+      );
+    }
+  }
+
   // Export article to Obsidian
   async function exportToObsidian() {
     if (!article.value) return;
@@ -859,8 +955,7 @@ export function useArticleDetail() {
 
     // Load default view mode from settings
     try {
-      const res = await fetch('/api/settings');
-      const data = await res.json();
+      const data = await fetchSettings();
       defaultViewMode.value = data.default_view_mode || 'original';
     } catch (e) {
       console.error('Error loading settings:', e);
@@ -883,6 +978,7 @@ export function useArticleDetail() {
     imageViewerAlt,
     imageViewerImages,
     imageViewerInitialIndex,
+    eagleEnabled: computed(() => settings.value.eagle_enabled),
     locale,
     hasPreviousArticle,
     hasNextArticle,
@@ -900,6 +996,8 @@ export function useArticleDetail() {
     copyImage,
     downloadImage,
     exportToObsidian,
+    saveImageToEagle,
+    saveArticleImagesToEagle,
     attachImageEventListeners, // Expose for re-attaching after content modifications
     handleRetryLoadContent,
     goToPreviousArticle,
