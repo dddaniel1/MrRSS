@@ -7,7 +7,6 @@ import {
   PhMagnifyingGlassPlus,
   PhDownloadSimple,
   PhCopy,
-  PhBookmarkSimple,
 } from '@phosphor-icons/vue';
 
 const { t } = useI18n();
@@ -344,7 +343,7 @@ const imageStyle = computed<CSSProperties>(() => ({
         :title="t('common.contextMenu.saveImageToEagle')"
         @click="emit('saveToEagle', currentSrc)"
       >
-        <PhBookmarkSimple :size="20" />
+        <img src="/assets/plugin_icons/eagle.png" alt="Eagle" class="w-5 h-5" />
       </button>
     </div>
 

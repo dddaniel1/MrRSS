@@ -17,7 +17,6 @@ import {
   PhMagnifyingGlassMinus,
   PhEnvelope,
   PhEnvelopeOpen,
-  PhBookmarkSimple,
 } from '@phosphor-icons/vue';
 import { openInBrowser } from '@/utils/browser';
 import { getProxiedMediaUrl } from '@/utils/mediaProxy';
@@ -1298,7 +1297,7 @@ onUnmounted(() => {
             :title="t('common.contextMenu.saveImageToEagle')"
             @click="saveImageToEagle(currentImageUrl)"
           >
-            <PhBookmarkSimple :size="20" />
+            <img src="/assets/plugin_icons/eagle.png" alt="Eagle" class="w-5 h-5" />
           </button>
           <button
             v-if="settings.eagle_enabled && allImages.length > 1"
@@ -1306,7 +1305,7 @@ onUnmounted(() => {
             :title="t('common.contextMenu.saveAllImagesToEagle')"
             @click="saveAllArticleImagesToEagle(selectedArticle)"
           >
-            <PhImage :size="20" />
+            <img src="/assets/plugin_icons/eagle.png" alt="Eagle" class="w-5 h-5" />
           </button>
           <button
             class="px-2 py-1.5 rounded bg-black/50 hover:bg-black/70 text-white transition-colors"
@@ -1562,17 +1561,18 @@ onUnmounted(() => {
           closeContextMenu();
         "
       >
-        <PhBookmarkSimple :size="16" />
+        <img src="/assets/plugin_icons/eagle.png" alt="Eagle" class="w-4 h-4" />
         <span>{{ t('common.contextMenu.saveImageToEagle') }}</span>
       </button>
       <button
+        v-if="settings.eagle_enabled"
         class="w-full px-4 py-2 flex items-center gap-3 text-sm text-text-primary hover:bg-bg-tertiary active:bg-bg-secondary transition-colors cursor-pointer"
         @click="
           saveAllArticleImagesToEagle(contextMenu.article);
           closeContextMenu();
         "
       >
-        <PhImage :size="16" />
+        <img src="/assets/plugin_icons/eagle.png" alt="Eagle" class="w-4 h-4" />
         <span>{{ t('common.contextMenu.saveAllImagesToEagle') }}</span>
       </button>
       <button

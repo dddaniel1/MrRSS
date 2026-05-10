@@ -480,7 +480,7 @@ export function useArticleDetail() {
                             {
                               label: t('common.contextMenu.saveImageToEagle'),
                               action: 'saveToEagle',
-                              icon: 'PhBookmarkSimple',
+                              iconSrc: '/assets/plugin_icons/eagle.png',
                             },
                           ]
                         : []),

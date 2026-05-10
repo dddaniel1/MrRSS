@@ -13,8 +13,6 @@ import {
   PhArrowSquareOut,
   PhTranslate,
   PhSpinnerGap,
-  PhShareNetwork,
-  PhImage,
 } from '@phosphor-icons/vue';
 import type { Article } from '@/types/models';
 
@@ -160,7 +158,11 @@ defineEmits<{
         :title="t('setting.plugins.obsidian.exportTo')"
         @click="$emit('exportToObsidian')"
       >
-        <PhShareNetwork :size="18" class="sm:w-5 sm:h-5" />
+        <img
+          src="/assets/plugin_icons/obsidian.svg"
+          alt="Obsidian"
+          class="w-[18px] h-[18px] sm:w-5 sm:h-5"
+        />
       </button>
       <button
         v-if="settings.eagle_enabled"
@@ -168,7 +170,11 @@ defineEmits<{
         :title="t('common.contextMenu.saveAllImagesToEagle')"
         @click="$emit('saveAllImagesToEagle')"
       >
-        <PhImage :size="18" class="sm:w-5 sm:h-5" />
+        <img
+          src="/assets/plugin_icons/eagle.png"
+          alt="Eagle"
+          class="w-[18px] h-[18px] sm:w-5 sm:h-5"
+        />
       </button>
     </div>
   </div>

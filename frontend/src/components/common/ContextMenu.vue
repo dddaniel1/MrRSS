@@ -15,6 +15,7 @@ export interface ContextMenuItem {
   label?: string;
   action?: string;
   icon?: string;
+  iconSrc?: string;
   iconWeight?: 'regular' | 'bold' | 'light' | 'fill' | 'duotone' | 'thin';
   iconColor?: string;
   disabled?: boolean;
@@ -174,6 +175,7 @@ const menuStyle = computed(() => ({
             (item.danger ? 'text-red-600 dark:text-red-400' : 'text-text-secondary')
           "
         />
+        <img v-else-if="item.iconSrc" :src="item.iconSrc" alt="" class="w-5 h-5 shrink-0" />
         <span>{{ item.label }}</span>
       </div>
     </template>

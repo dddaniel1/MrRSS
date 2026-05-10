@@ -2,7 +2,6 @@
 import { computed, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 import {
-  PhBookmarkSimple,
   PhFolderOpen,
   PhHash,
   PhTag,
@@ -121,7 +120,11 @@ async function testConnection() {
 <template>
   <div class="setting-item">
     <div class="flex-1 flex items-center sm:items-start gap-2 sm:gap-3 min-w-0">
-      <PhBookmarkSimple :size="24" class="mt-0.5 shrink-0 text-accent" />
+      <img
+        src="/assets/plugin_icons/eagle.png"
+        alt="Eagle"
+        class="w-5 h-5 sm:w-6 sm:h-6 mt-0.5 shrink-0"
+      />
       <div class="flex-1 min-w-0">
         <div class="font-medium mb-0 sm:mb-1 text-sm sm:text-base">
           {{ t('setting.plugins.eagle.integration') }}
@@ -143,7 +146,7 @@ async function testConnection() {
     <InfoBox :content="t('setting.plugins.eagle.info')" />
 
     <SubSettingItem
-      :icon="PhBookmarkSimple"
+      :icon="PhTestTube"
       :title="t('setting.plugins.eagle.apiUrl')"
       :description="t('setting.plugins.eagle.apiUrlDesc')"
       required
